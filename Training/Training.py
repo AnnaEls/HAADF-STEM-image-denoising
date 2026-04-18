@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
 
+from Training.Masking import random_patch_mask
+
 import os
 
 def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
