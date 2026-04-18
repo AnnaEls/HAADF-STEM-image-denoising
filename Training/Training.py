@@ -4,7 +4,9 @@ import torch.nn.functional as F
 from Training.Masking import random_patch_mask
 
 import os
+import tifffile
 import numpy as np
+import matplotlib.pyplot as plt
 
 def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
     
@@ -35,6 +37,17 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            denoised_image= model(noisy_image_tensor)
+            tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image.squeeze().detach().cpu().numpy()), imagej=True)
+            if show_image:
+               print(f"epoch {it + 1}, loss={loss.item():.6f}")
+               plt.figure(figsize=(4, 4)) # Create a new figure for the 4 plots
+               plt.imshow(denoised_image.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
+               plt.show()
+        model.train()
 
         
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))
