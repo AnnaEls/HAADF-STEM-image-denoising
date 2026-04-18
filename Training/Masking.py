@@ -1,3 +1,5 @@
+import torch
+
 def random_patch_mask(x, patch_size=1, mask_ratio=0.2, *, seed=None, epoch=None):
     """
     Random patch masking, reproducible across runs.
