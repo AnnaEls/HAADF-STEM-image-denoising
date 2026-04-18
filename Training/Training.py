@@ -14,7 +14,6 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
     os.makedirs(path, exist_ok=True)
 
     for it in range(num_iter):   
-        # deterministic mask that changes by epoch
         masked_input, mask = random_patch_mask(
             input,
             patch_size=patch_size,
