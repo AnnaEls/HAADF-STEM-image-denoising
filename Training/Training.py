@@ -40,7 +40,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
 
         model.eval()
         with torch.no_grad():
-            denoised_image= model(noisy_image_tensor)
+            denoised_image= model(input)
             tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image.squeeze().detach().cpu().numpy()), imagej=True)
             if show_image:
                print(f"epoch {it + 1}, loss={loss.item():.6f}")
