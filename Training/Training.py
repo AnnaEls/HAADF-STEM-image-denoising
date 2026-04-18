@@ -44,7 +44,6 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
             tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image.squeeze().detach().cpu().numpy()), imagej=True)
             if show_image:
                print(f"epoch {it + 1}, loss={loss.item():.6f}")
-               plt.figure(figsize=(4, 4)) # Create a new figure for the 4 plots
                plt.imshow(denoised_image.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
                plt.show()
         model.train()
