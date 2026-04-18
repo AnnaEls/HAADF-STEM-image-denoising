@@ -2,6 +2,7 @@ import tifffile
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import cv2
 
 def z_score_normalize(img):
     """
@@ -21,3 +22,7 @@ def prepare_input(path, show_image = True):
   if show_image:
      plt.imshow(noisy_image_tensor[0,0], cmap='gray'); plt.axis('off'); plt.tight_layout(); plt.show();
   return noisy_image_tensor
+
+def convert(image):
+  image = cv2.normalize(image, None, alpha = 0, beta = 255, norm_type = cv2.NORM_MINMAX, dtype = cv2.CV_32F).astype(np.uint8)
+  return image
