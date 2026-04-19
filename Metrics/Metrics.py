@@ -72,7 +72,7 @@ def calculate_metrics(path, path_to_clean_image, show_graphs=False):
     max_ssim = np.max(ssims)
     best_psnr_iteration = iterations[np.argmax(psnrs)]
     best_ssim_iteration = iterations[np.argmax(ssims)]
-    stopping_iter = np.min(fourier_entropies)
+    stopping_iter =  iterations[np.argmin(fourier_entropies)]
     np.save(os.path.join(path, 'psnrs.npy'), psnrs)
     np.save(os.path.join(path, 'ssims.npy'), ssims)
     np.save(os.path.join(path, 'fourier_entropy.npy'), fourier_entropies )
