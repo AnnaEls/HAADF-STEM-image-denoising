@@ -17,7 +17,7 @@ def fourier_entropy(image, normalize=True, remove_dc=True, eps=1e-12):
     if image.ndim != 2:
         raise ValueError("Input must be a 2D array")
 
-   if remove_dc:
+    if remove_dc:
         image = image - np.mean(image)
 
     # Power spectrum
