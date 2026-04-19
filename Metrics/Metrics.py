@@ -7,7 +7,7 @@ from scipy.stats import entropy
 from skimage.metrics import peak_signal_noise_ratio as psnr_metric
 from skimage.metrics import structural_similarity as ssim_metric
 
-from Utilities.Utilities import convert
+from Utilities.Utils import convert
 
 def fourier_entropy(image, normalize=True, remove_dc=True, eps=1e-12):
     """
