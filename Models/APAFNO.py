@@ -178,7 +178,7 @@ class APAFNO(nn.Module):
 
         #Bottleneck
         self.bottleneck =nn.ModuleList([
-             AFNOAmpPhaseBlock(channels = base_ch, hidden_channels=hidden_ch_AFNO, phase_scale=phase_scale,norm='Layer')
+             AFNOAmpPhaseBlock(channels = base_ch, hidden_channels=hidden_ch_AFNO, phase_scale=phase_scale)
             for _ in range(depth)
         ])
 
