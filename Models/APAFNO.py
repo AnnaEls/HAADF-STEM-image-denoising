@@ -142,7 +142,7 @@ class AFNOAmpPhaseBlock(nn.Module):
 
         # ---- Phase learning (predict Δφ) ----
         delta_phase = self.phase_mlp(phase)
-        delta_phase = self.phase_scale * delta_phase
+        delta_phase =  delta_phase
 
         phase_out = phase + delta_phase
 
