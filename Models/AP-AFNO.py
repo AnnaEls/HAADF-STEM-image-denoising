@@ -171,21 +171,28 @@ class AFNOAmpPhaseBlock(nn.Module):
 #Model
 #===============================
 class APAFNO(nn.Module):
-    def __init__(self,in_channels=1, base_ch=64):
+    def __init__(self,in_channels=1, base_ch=64, depth=3, hidden_ch_AFNO = 128, phase_scale = 1.0):
         super().__init__()
         # Encoder
         self.encoder = EncoderBlock(in_channels, base_ch)
-       
+
+        #Bottleneck
+        self.bottleneck =nn.ModuleList([
+             AFNOAmpPhaseBlock(channels = base_ch, hidden_channels=hidden_ch_AFNO, phase_scale=phase_scale,norm=None)
+            for _ in range(depth)
+        ])
 
         # Decoder
-        self.decoder = DecoderBlock(base_ch*2, base_ch)
+        self.decoder = DecoderBlock(base_ch, base_ch)
         self.out = nn.Conv2d(base_ch, in_channels,  1)
 
     def forward(self, x):
         # Encoder
         x, skip_1 = self.encoder(x) 
 
+        for blk in self.bottleneck:
+           x = blk(x)
+            
         y = self.decoder(x, skip_1)   
 
-        return self.out(y)
-                    
+        return self.out(y)                    
