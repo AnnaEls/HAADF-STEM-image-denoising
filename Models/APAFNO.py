@@ -171,7 +171,7 @@ class AFNOAmpPhaseBlock(nn.Module):
 #Model
 #===============================
 class APAFNO(nn.Module):
-    def __init__(self,in_channels=1, base_ch=64, depth=3, hidden_ch_AFNO = 128, phase_scale = 1.0):
+    def __init__(self,in_channels=1, base_ch=64, depth=3, hidden_ch_AFNO = 128, phase_scale = 'None'):
         super().__init__()
         # Encoder
         self.encoder = EncoderBlock(in_channels, base_ch)
