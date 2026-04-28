@@ -110,6 +110,3 @@ def train_model_self_guided(model, input, path, sigma, reg_coef, learning_rate=1
         
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
     
-
-        
-   
