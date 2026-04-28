@@ -89,7 +89,7 @@ def train_model_self_guided(model, input, path, sigma, reg_coef, learning_rate=1
             denoised_image= model(input) 
             tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image.squeeze().detach().cpu().numpy()), imagej=True) 
             if show_image:
-                print(f"epoch {it + 1}, loss={loss.item():.6f}") 
+                print(f"epoch {it + 1}, loss_recon={loss_recon.item():.6f}, loss_reg ={loss_reg.item():.6f}") 
                 plt.imshow(denoised_image.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout(); plt.show() 
         model.train() 
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))       
