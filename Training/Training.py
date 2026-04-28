@@ -90,7 +90,7 @@ def train_model_self_guided(model, input, path, sigma, reg_coef, learning_rate=1
         output_1 = model(masked_input_1)
         output_2 = model(masked_input_2)
 
-        loss = F.mse_loss(output_1 * (1 - mask), input * (1 - mask)) + reg_coef*torch.mean((output_1* - output_2.detach())**2)
+        loss = F.mse_loss(output_1 * (1 - mask), input * (1 - mask)) + reg_coef*torch.mean((output_1 - output_2.detach())**2)
         loss_history.append(loss.item())
 
         optimizer.zero_grad()
