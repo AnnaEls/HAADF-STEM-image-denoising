@@ -48,7 +48,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
                plt.imshow(denoised_image.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
                plt.show()
         model.train()
-     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
+    np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
 
 def train_model_self_guided(model, input, path, sigma, reg_coef, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
     
