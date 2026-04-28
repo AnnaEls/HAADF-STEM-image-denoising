@@ -66,9 +66,10 @@ def train_model_self_guided(model, input, path, sigma, reg_coef, learning_rate=1
     os.makedirs(path, exist_ok=True) 
     for it in range(num_iter): 
         input_1 = input + torch.rand(1).to(device) * torch.randn_like(input) 
-        input_2 = input + sigma * torch.randn_like(input) 
+        input_2 = input + torch.rand(1).to(device) * torch.randn_like(input) 
 
         input_1 = (input_1 - input_1.mean())/(input_1.std())
+        input_2 = (input_2 - input_2.mean())/(input_2.std())
         
         masked_input_1, mask = random_patch_mask( input_1, patch_size=patch_size, mask_ratio=mask_ratio, seed=seed, epoch=it ) 
         masked_input_2, mask = random_patch_mask( input_2, patch_size=patch_size, mask_ratio=mask_ratio, seed=seed, epoch=it ) 
