@@ -57,7 +57,9 @@ def train_model_self_guided(model, input, path, sigma, reg_coef, learning_rate=1
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) 
     input = input.to(device) 
     input_1 = input 
-    input_2 = input model.train() 
+    input_2 = input 
+    
+    model.train() 
     
     loss_history = [] 
     
