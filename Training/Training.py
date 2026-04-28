@@ -71,13 +71,13 @@ def train_model_self_guided(model, input, path, sigma, reg_coef, learning_rate=1
         input_1 = (input_1 - input_1.mean())/(input_1.std())
         input_2 = (input_2 - input_2.mean())/(input_2.std())
         
-        masked_input_1, mask = random_patch_mask( input_1, patch_size=patch_size, mask_ratio=mask_ratio, seed=seed, epoch=it ) 
+        masked_input_1, mask = random_patch_mask( input, patch_size=patch_size, mask_ratio=mask_ratio, seed=seed, epoch=it ) 
         masked_input_2, mask = random_patch_mask( input_2, patch_size=patch_size, mask_ratio=mask_ratio, seed=seed, epoch=it ) 
         
-        output_1 = model(masked_input_1) 
-        output_2 = model(masked_input_2) 
+        output_1 = model(input_1) 
+        output_2 = model(input_2) 
         
-        loss_recon = F.mse_loss(output_1 * (1 - mask), input * (1 - mask)) 
+        loss_recon = F.mse_loss(output_1 , input) 
         loss_reg = torch.mean((output_1 - output_2.detach())**2) 
         loss = loss_recon + reg_coef*loss_reg
         
