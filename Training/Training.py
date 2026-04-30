@@ -56,8 +56,9 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
     model = model.to(device) #reconstruction model
     input = input.to(device)
     z = input.clone().detach().requires_grad_(True) #prior
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    optimizer_z = torch.optim.SGD([z],lr=learning_rate_prior,momentum=0.0)
+    optimizer = torch.optim.Adam([{"params": model.parameters(), "lr": lr_model},
+                                  {"params": [z], "lr": lr_z}])
+   
     model.train()
 
     loss_history = []
@@ -79,11 +80,9 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
         loss_history.append(loss.item())
 
         optimizer.zero_grad()
-        optimizer_z.zero_grad()
         loss.backward()
         optimizer.step()
-        optimizer_z.step()
-        
+                
         model.eval()
         with torch.no_grad():
             denoised_image= model(input)
