@@ -55,8 +55,7 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")    
     model = model.to(device) #reconstruction model
     input = input.to(device)
-    #z = input.clone().detach().requires_grad_(True) #prior
-    z = torch.randn_like(input, requires_grad=True)
+    z = input.clone().detach().requires_grad_(True) #prior
     optimizer = torch.optim.Adam([{"params": model.parameters(), "lr": learning_rate},
                                   {"params": [z], "lr": learning_rate_prior}])
    
