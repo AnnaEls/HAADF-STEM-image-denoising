@@ -198,12 +198,8 @@ def train_model_SURE(model, input, path, learning_rate=1e-3, num_iter=1, patch_s
                plt.show()
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history)) 
-    plt.plot(sure[0])
-    plt.show()
-    plt.plot(sure[1])
-    plt.show()
-    plt.plot(sure[2])
-    plt.show()
+    plt.plot(sure)
+  
     
     
    
