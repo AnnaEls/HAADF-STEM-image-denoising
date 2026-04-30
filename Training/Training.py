@@ -87,7 +87,7 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
             denoised_image= model(input)
             tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image.squeeze().detach().cpu().numpy()), imagej=True)
             if show_image:
-               print(f"epoch {it + 1}, loss={reconstruction_loss.item():.6f}")
+               print(f"epoch {it + 1}, loss={loss.item():.6f}")
                plt.imshow(denoised_image.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
                plt.show()
         model.train()
