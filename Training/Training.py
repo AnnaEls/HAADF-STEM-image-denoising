@@ -57,8 +57,8 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
     input = input.to(device)
     #z = input.clone().detach().requires_grad_(True) #prior
     z = torch.zeros_like(input, requires_grad=True)
-    optimizer = torch.optim.Adam([{"params": model.parameters(), "lr": lr_model},
-                                  {"params": [z], "lr": lr_z}])
+    optimizer = torch.optim.Adam([{"params": model.parameters(), "lr": learning_rate},
+                                  {"params": [z], "lr": learning_rate_prior}])
    
     model.train()
 
