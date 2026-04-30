@@ -56,14 +56,9 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
     model = model.to(device) #reconstruction model
     input = input.to(device)
     z = input.clone().detach().requires_grad_(True) #prior
-    optimizer = torch.optim.Adam([{"params": model.parameters(), "lr": learning_rate},
-                                  {"params": [z], "lr": learning_rate_prior}])
-    model.train()
-
-    loss_history = []
-
-    os.makedirs(path, exist_ok=True)
-
+    optimizer = torch.optim.Adam([{"params": model.parameters(), "lr": learning_rate})
+    optimizer_z = torch.optim.SGD([z],lr=learning_rate_prior,momentum=0.0)
+                                 
     for it in range(num_iter):   
         masked_input, mask = random_patch_mask(
             z,
@@ -79,8 +74,10 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
         loss_history.append(loss.item())
 
         optimizer.zero_grad()
+        optimizer_z.zero_grad()
         loss.backward()
         optimizer.step()
+        optimizer_z.step()
         
         model.eval()
         with torch.no_grad():
