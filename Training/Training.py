@@ -74,6 +74,7 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
     for it in range(num_iter): 
         eps = sigma * torch.randn_like(z)
         input_eps = z_score_normalize(input + eps)
+        z = z_score_normalize(z)   
         masked_input, mask = random_patch_mask(
             z,
             patch_size=patch_size,
@@ -90,7 +91,7 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        z = z_score_normalize(z)        
+             
         model.eval()
         with torch.no_grad():
             denoised_image= model(input)
