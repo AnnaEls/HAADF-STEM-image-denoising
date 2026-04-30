@@ -76,10 +76,17 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
         output = model(masked_input)
 
         eps = sigma * torch.randn_like(z) #disturbance
-        output_distrubed = model(z + eps)
+        masked_input_eps, mask_eps = random_patch_mask(
+            z + eps,
+            patch_size=patch_size,
+            mask_ratio=mask_ratio,
+            seed=None,         
+            epoch=it            
+        )
+        output_eps = model(masked_input_eps)
 
         reconstruction_loss = F.mse_loss(output * (1 - mask), input * (1 - mask))
-        reg_loss = F.mse_loss(output_distrubed, z)
+        reg_loss = F.mse_loss(output_eps * (1 - mask_eps), z * (1 - mask_eps))
         loss = reconstruction_loss + reg*reg_loss
         loss_history.append(loss.item())
 
