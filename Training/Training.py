@@ -13,7 +13,7 @@ def z_score_normalize(x, eps=1e-8):
     mean = x.mean()
     std = x.std(unbiased=False)  # stable for single image
     x_norm = (x - mean) / (std + eps)
-    return x_norm, mean, std
+    return x_norm
 
 def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
     
