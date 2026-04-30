@@ -90,7 +90,7 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-                
+        z = z_score_normalize(z)        
         model.eval()
         with torch.no_grad():
             denoised_image= model(input)
