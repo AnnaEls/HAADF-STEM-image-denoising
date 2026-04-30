@@ -182,7 +182,7 @@ def train_model_SURE(model, input, path, learning_rate=1e-3, num_iter=1, patch_s
 
         loss = F.mse_loss(output_afno * (1 - mask), input * (1 - mask))
         loss_history.append(loss.item())
-        sure.append(sure_mc(model, input, 0.6)
+        sure.append(sure_mc(model, input, 0.6))
 
         optimizer.zero_grad()
         loss.backward()
