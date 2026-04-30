@@ -72,6 +72,7 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
     os.makedirs(path, exist_ok=True)
                                  
     for it in range(num_iter): 
+        sigma = torch.empty(1, device=device).uniform_(1e-6, 0.5).item()
         eps = sigma * torch.randn_like(z)
         input_eps = z_score_normalize(input + eps)
         z = z_score_normalize(z.clone().detach())   
