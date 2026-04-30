@@ -9,6 +9,12 @@ import tifffile
 import numpy as np
 import matplotlib.pyplot as plt
 
+def z_score_normalize(x, eps=1e-8):
+    mean = x.mean()
+    std = x.std(unbiased=False)  # stable for single image
+    x_norm = (x - mean) / (std + eps)
+    return x_norm, mean, std
+
 def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -50,7 +56,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
 
-def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate_prior = 1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):
+def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate_prior = 1e-3, eps=0.1, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")    
     model = model.to(device) #reconstruction model
@@ -65,7 +71,9 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
 
     os.makedirs(path, exist_ok=True)
                                  
-    for it in range(num_iter):   
+    for it in range(num_iter): 
+        eps = sigma * torch.randn_like(z)
+        input_eps = z_score_normalize(input + eps)
         masked_input, mask = random_patch_mask(
             z,
             patch_size=patch_size,
@@ -76,7 +84,7 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
 
         output = model(masked_input)
 
-        loss = F.mse_loss(output * (1 - mask), input * (1 - mask))
+        loss = F.mse_loss(output * (1 - mask), input_eps * (1 - mask))
         loss_history.append(loss.item())
 
         optimizer.zero_grad()
