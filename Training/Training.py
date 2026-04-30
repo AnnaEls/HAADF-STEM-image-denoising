@@ -80,13 +80,13 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
             z + eps,
             patch_size=patch_size,
             mask_ratio=mask_ratio,
-            seed=None,         
+            seed=seed,         
             epoch=it            
         )
         output_eps = model(masked_input_eps)
 
         reconstruction_loss = F.mse_loss(output * (1 - mask), input * (1 - mask))
-        reg_loss = F.mse_loss(output_eps * (1 - mask_eps), z * (1 - mask_eps))
+        reg_loss = F.mse_loss(output_eps * (1 - mask_eps), input * (1 - mask_eps))
         loss = reconstruction_loss + reg*reg_loss
         loss_history.append(loss.item())
 
