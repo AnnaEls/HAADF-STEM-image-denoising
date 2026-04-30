@@ -138,7 +138,7 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
 
         output = model(masked_input)
 
-        loss = F.mse_loss(output * (1 - mask), input * (1 - mask)) + 
+        loss = F.mse_loss(output * (1 - mask), input * (1 - mask)) 
         loss_history.append(loss.item())
 
         optimizer.zero_grad()
