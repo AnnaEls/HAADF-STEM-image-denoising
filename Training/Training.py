@@ -58,6 +58,11 @@ def train_model_with_prior(model, input, path, learning_rate=1e-3, learning_rate
     z = input.clone().detach().requires_grad_(True) #prior
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     optimizer_z = torch.optim.SGD([z],lr=learning_rate_prior,momentum=0.0)
+     model.train()
+
+    loss_history = []
+
+    os.makedirs(path, exist_ok=True)
                                  
     for it in range(num_iter):   
         masked_input, mask = random_patch_mask(
