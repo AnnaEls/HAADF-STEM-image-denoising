@@ -88,7 +88,7 @@ def train_model_amp_phase(model, input, path, learning_rate=1e-3, num_iter=1, pa
 
         model.eval()
         with torch.no_grad():
-            denoised_image= model(input)[0:1, :, :, :]
+            denoised_image= model(input)[2:3, :, :, :]
             tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image.squeeze().detach().cpu().numpy()), imagej=True)
             if show_image:
                print(f"epoch {it + 1}, loss={loss.item():.6f}")
