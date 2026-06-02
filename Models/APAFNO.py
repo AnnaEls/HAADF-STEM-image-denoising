@@ -30,7 +30,7 @@ def init_unet_kaiming(model: nn.Module, zero_out_head: bool = True):
                 if m.bias is not None:
                     m.bias.zero_()
 
-        elif isinstance(m, (nn.BatchNorm2d, nn.InstanceNorm2d, nn.GroupNorm)) and hasattr(m, 'weight'):
+        elif isinstance(m, (nn.BatchNorm2d, nn.InstanceNorm2d, nn.GroupNorm)):
             nn.init.ones_(m.weight)
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
