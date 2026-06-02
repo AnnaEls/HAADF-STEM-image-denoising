@@ -23,7 +23,7 @@ def prepare_input(path, show_image = True):
      plt.imshow(noisy_image_tensor[0,0], cmap='gray'); plt.axis('off'); plt.tight_layout(); plt.show();
   return noisy_image_tensor
 
-def prepare_input_amp_phase(path, show_image=True, normalize_separately=True):
+def prepare_input_amp_phase(path, show_image=True, normalize_separately=True, clip_limit = 0.2):
     """
     Loads image and creates a 3-channel tensor:
 
@@ -94,7 +94,10 @@ def prepare_input_amp_phase(path, show_image=True, normalize_separately=True):
         axes[0].imshow(noisy_image_tensor[0, 0].cpu(), cmap="gray")
         axes[0].set_title("Original\nz-score")
 
-        axes[1].imshow(noisy_image_tensor[0, 1].cpu(), cmap="gray")
+        img_amp_disp = exposure.rescale_intensity((noisy_image_tensor[0, 1].cpu(), out_range=(0, 1))
+        img_amp_disp = exposure.equalize_adapthist(img_amp_disp, clip_limit=clip_limit)
+
+        axes[1].imshow(img_amp_disp, cmap="gray")
         axes[1].set_title("Amplitude-only IFFT\nz-score")
 
         axes[2].imshow(noisy_image_tensor[0, 2].cpu(), cmap="gray")
