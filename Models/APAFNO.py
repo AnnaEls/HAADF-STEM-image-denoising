@@ -91,7 +91,6 @@ class AFNOAmpPhaseBlock(nn.Module):
         """
         x: (B, C, H, W)
         """
-        x = x[0:1, : ,: ,: ]
         B, C, H, W = x.shape
         
         # ---- FFT ----
@@ -128,12 +127,7 @@ class AFNOAmpPhaseBlock(nn.Module):
 
         # ---- inverse FFT ----
         x_out = torch.fft.ifft2(x_fft_out, norm='ortho').real
-        x_out_amp = torch.fft.ifft2(amp_out, norm='ortho').real
-        x_out_phase = torch.fft.ifft2(torch.exp(1j * phase_out), norm='ortho').real
-
-        x_out = torch.cat([x_out, x_out_amp, x_out_phase],dim=0)
-
-
+       
         return x_out 
 
 
