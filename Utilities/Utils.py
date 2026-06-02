@@ -95,7 +95,7 @@ def prepare_input_amp_phase(path, show_image=True, normalize_separately=True, cl
         axes[0].imshow(noisy_image_tensor[0, 0].cpu(), cmap="gray")
         axes[0].set_title("Original\nz-score")
 
-        img_amp_disp = exposure.rescale_intensity(noisy_image_tensor[0, 1].cpu(), out_range=(0, 1))
+        img_amp_disp = exposure.rescale_intensity(image_amp_only_norm, out_range=(0, 1))
         img_amp_disp = exposure.equalize_adapthist(img_amp_disp, clip_limit=clip_limit)
 
         axes[1].imshow(img_amp_disp, cmap="gray")
