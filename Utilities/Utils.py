@@ -24,55 +24,73 @@ def prepare_input(path, show_image = True):
      plt.imshow(noisy_image_tensor[0,0], cmap='gray'); plt.axis('off'); plt.tight_layout(); plt.show();
   return noisy_image_tensor
 
-def prepare_input_amp_phase(path, show_image=True, normalize_separately=True, clip_limit = 0.2):
-    """
-    Loads image and creates a 3-channel tensor:
+import numpy as np
+import torch
+import tifffile
+import matplotlib.pyplot as plt
+from skimage import exposure
+import cv2
 
-        channel 0: original image
-        channel 1: inverse FFT reconstructed from amplitude only
-        channel 2: inverse FFT reconstructed from phase only
+
+def prepare_input_amp_phase(
+    path,
+    show_image=True,
+    normalize_separately=True,
+    clip_limit=0.2
+):
+    """
+    Loads image and creates tensor:
+
+        tensor[0] = original image
+        tensor[1] = inverse FFT reconstructed from amplitude only
+        tensor[2] = inverse FFT reconstructed from phase only
 
     Output:
-        noisy_image_tensor shape = [1, 3, H, W]
+        noisy_image_tensor shape = [3, C, H, W]
+
+    For grayscale image:
+        [3, 1, H, W]
     """
 
+    # -------------------------
     # Load image
+    # -------------------------
     noisy_image = np.array(tifffile.imread(path)).astype(np.float32)
 
-    # Convert RGB/RGBA to grayscale if needed
+    # If RGB/RGBA, convert to grayscale
     if noisy_image.ndim == 3:
         noisy_image = noisy_image[..., :3].mean(axis=2)
 
+    # Now image is [H, W]
+    H, W = noisy_image.shape
+
+    # -------------------------
     # Fourier transform
+    # -------------------------
     F = np.fft.fft2(noisy_image)
 
     amplitude = np.abs(F)
     phase = np.angle(F)
 
-    # Inverse FFT from amplitude only
-    # Equivalent to setting phase = 0
+    # -------------------------
+    # Amplitude-only reconstruction
+    # -------------------------
     F_amp_only = amplitude * np.exp(1j * 0.0)
     image_amp_only = np.fft.ifft2(F_amp_only).real.astype(np.float32)
 
-    # Inverse FFT from phase only
-    # Equivalent to setting amplitude = 1
+    # -------------------------
+    # Phase-only reconstruction
+    # -------------------------
     F_phase_only = np.exp(1j * phase)
     image_phase_only = np.fft.ifft2(F_phase_only).real.astype(np.float32)
 
+    # -------------------------
     # Normalize
+    # -------------------------
     if normalize_separately:
         noisy_image_norm = z_score_normalize(noisy_image)
         image_amp_only_norm = z_score_normalize(image_amp_only)
         image_phase_only_norm = z_score_normalize(image_phase_only)
-
-        stacked = np.stack(
-            [
-                noisy_image_norm,
-                image_amp_only_norm,
-                image_phase_only_norm,
-            ],
-            axis=0
-        )
 
     else:
         stacked_raw = np.stack(
@@ -84,24 +102,54 @@ def prepare_input_amp_phase(path, show_image=True, normalize_separately=True, cl
             axis=0
         )
 
-        stacked = z_score_normalize(stacked_raw)
+        stacked_norm = z_score_normalize(stacked_raw)
 
-    # [C, H, W] -> [1, C, H, W]
-    noisy_image_tensor = torch.from_numpy(stacked).unsqueeze(0).float()
+        noisy_image_norm = stacked_norm[0]
+        image_amp_only_norm = stacked_norm[1]
+        image_phase_only_norm = stacked_norm[2]
 
+    # -------------------------
+    # Add channel dimension
+    # Each image: [H, W] -> [1, H, W]
+    # -------------------------
+    noisy_image_norm = noisy_image_norm[None, :, :]
+    image_amp_only_norm = image_amp_only_norm[None, :, :]
+    image_phase_only_norm = image_phase_only_norm[None, :, :]
+
+    # -------------------------
+    # Stack to [3, C, H, W]
+    # -------------------------
+    stacked = np.stack(
+        [
+            noisy_image_norm,
+            image_amp_only_norm,
+            image_phase_only_norm,
+        ],
+        axis=0
+    )
+
+    noisy_image_tensor = torch.from_numpy(stacked).float()
+
+    # -------------------------
+    # Show images
+    # -------------------------
     if show_image:
         fig, axes = plt.subplots(1, 3, figsize=(12, 4))
 
         axes[0].imshow(noisy_image_tensor[0, 0].cpu(), cmap="gray")
         axes[0].set_title("Original\nz-score")
 
-        img_amp_disp = exposure.rescale_intensity(image_amp_only_norm, out_range=(0, 1))
-        img_amp_disp = exposure.equalize_adapthist(img_amp_disp, clip_limit=clip_limit)
+        img_amp_disp = noisy_image_tensor[1, 0].cpu().numpy()
+        img_amp_disp = exposure.rescale_intensity(img_amp_disp, out_range=(0, 1))
+        img_amp_disp = exposure.equalize_adapthist(
+            img_amp_disp,
+            clip_limit=clip_limit
+        )
 
         axes[1].imshow(img_amp_disp, cmap="gray")
-        axes[1].set_title("Amplitude-only IFFT\nz-score")
+        axes[1].set_title("Amplitude-only IFFT\nCLAHE display")
 
-        axes[2].imshow(noisy_image_tensor[0, 2].cpu(), cmap="gray")
+        axes[2].imshow(noisy_image_tensor[2, 0].cpu(), cmap="gray")
         axes[2].set_title("Phase-only IFFT\nz-score")
 
         for ax in axes:
