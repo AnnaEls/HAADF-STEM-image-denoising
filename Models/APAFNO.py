@@ -129,9 +129,9 @@ class AFNOAmpPhaseBlock(nn.Module):
         """
         x: (B, C, H, W)
         """
+        x = x[0:1, : ,: ,: ]
         B, C, H, W = x.shape
-        residual = x
-
+        
         # ---- FFT ----
         x_fft = torch.fft.fft2(x, norm='ortho')  # (B,C,H,W), complex
 
@@ -197,7 +197,7 @@ class APAFNO(nn.Module):
 
         for i in range(depth):
             if i == 0:
-                self.ups.append(DecoderBlock(base_ch*2**depth, base_ch*2**(depth-1))) 
+                self.ups.append(DecoderBlock(base_ch*2**(depth-1), base_ch*2**(depth-1))) 
             else:
                 self.ups.append(DecoderBlock(base_ch*2**(depth-i), base_ch*2**(depth-i-1)))
         
@@ -208,8 +208,10 @@ class APAFNO(nn.Module):
         for i, down in enumerate(self.downs):
             x, skip = down(x)
             skips.append(skip)
+            
 
         x = self.bottleneck(x)
+        
         
         
         for i, up in enumerate(self.ups):
