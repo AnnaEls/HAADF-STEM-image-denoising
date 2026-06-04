@@ -169,9 +169,9 @@ class UNet_DD(nn.Module):
 
         for i in range(depth):
             if i == 0:
-                self.downs.append(DonutEncoderBlock(in_channels, base_ch, add_dilation = add_dilation))
+                self.downs.append(DonutEncoderBlock(in_channels, base_ch, kernel_size = add_dilation))
             elif i == 1:
-                self.downs.append(DonutEncoderBlock(base_ch, base_ch*2, add_dilation = add_dilation))
+                self.downs.append(DonutEncoderBlock(base_ch, base_ch*2, kernel_size = add_dilation))
             else:
                 self.downs.append(EncoderBlock(base_ch*2**(i-1), base_ch*2**i))
 
