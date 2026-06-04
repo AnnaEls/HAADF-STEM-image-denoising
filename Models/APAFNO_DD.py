@@ -243,7 +243,7 @@ class AFNOAmpPhaseBlock(nn.Module):
 #Model
 #===============================
 class APAFNO_DD(nn.Module):
-    def __init__(self,in_channels=1, base_ch=32, depth = 5, add_dilation = (3,3)):
+    def __init__(self,in_channels=1, base_ch=32, depth = 5, add_dilation = (3,3), hidden_channels_amp = 32, hidden_channels_phase = 32):
         super().__init__()
         # Encoder
         self.depth = depth
@@ -259,7 +259,8 @@ class APAFNO_DD(nn.Module):
                 self.downs.append(EncoderBlock(base_ch*2**(i-1), base_ch*2**i))
 
         # Bottleneck
-        self.bottleneck = ConvBlock(base_ch*2**(depth-1), base_ch*2**depth)
+        self.bottleneck = AFNOAmpPhaseBlock(channels=base_ch*2**(depth-1), hidden_channels_amp=hidden_channels_amp, hidden_channels_phase=hidden_channels_phase)
+
 
         for i in range(depth):
             if i == 0:
