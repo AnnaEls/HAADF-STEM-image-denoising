@@ -156,6 +156,89 @@ class DecoderBlock(nn.Module):
 
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
+
+#=========================================
+#       APAFNO bottleneck
+#=========================================
+class AFNOAmpPhaseBlock(nn.Module):
+    def __init__(
+        self,
+        channels,
+        hidden_channels_amp=None,
+        hidden_channels_phase=None,
+        phase_scale=0.1,
+        norm='layer'
+    ):
+        super().__init__()
+
+        hidden_channels_amp = hidden_channels_amp or channels
+        hidden_channels_phase = hidden_channels_phase or channels
+        self.phase_scale = phase_scale
+
+        # --- Amplitude operator ---
+        self.amp_mlp = nn.Sequential(
+            nn.Linear(channels, hidden_channels_amp),
+            nn.GELU(),
+            nn.Linear(hidden_channels_amp, channels)
+        )
+
+        # --- Phase operator (learns Δφ) ---
+        self.phase_mlp = nn.Sequential(
+            nn.Linear(channels, hidden_channels_phase),
+            nn.GELU(),
+            nn.Linear(hidden_channels_phase, channels)
+        )
+
+
+        # --- Normalization ---
+
+        if norm == 'layer':
+            self.norm = nn.LayerNorm(channels)
+        else:
+            self.norm = nn.Identity()
+
+    def forward(self, x):
+        """
+        x: (B, C, H, W)
+        """
+        B, C, H, W = x.shape
+        
+        # ---- FFT ----
+        x_fft = torch.fft.fft2(x, norm='ortho')  # (B,C,H,W), complex
+
+        amp = torch.abs(x_fft)                   # (B,C,H,W)
+        phase = torch.angle(x_fft)               # (B,C,H,W)
+
+        # ---- reshape for channel mixing ----
+        amp = amp.permute(0, 2, 3, 1)             # (B,H,W,C)
+        phase = phase.permute(0, 2, 3, 1)
+
+        # ---- Amplitude learning ----
+        amp_out = self.amp_mlp(amp)
+
+        # ---- Phase learning (predict Δφ) ----
+        delta_phase = self.phase_mlp(phase)
+        delta_phase = self.phase_scale * delta_phase
+
+        phase_out = phase + delta_phase
+
+        # ---- wrap phase to [-π, π] ----
+        phase_out = torch.atan2(
+            torch.sin(phase_out),
+            torch.cos(phase_out)
+        )
+
+        # ---- reconstruct complex spectrum ----
+        amp_out = amp_out.permute(0, 3, 1, 2)
+        phase_out = phase_out.permute(0, 3, 1, 2)
+
+        x_fft_out = amp_out*torch.exp(1j * phase_out)
+
+
+        # ---- inverse FFT ----
+        x_out = torch.fft.ifft2(x_fft_out, norm='ortho').real
+       
+        return x_out 
 #===============================
 #Model
 #===============================
