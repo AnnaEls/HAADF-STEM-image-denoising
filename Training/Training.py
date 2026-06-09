@@ -54,9 +54,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
 
-   
- 
-def train_model_amp_phase(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
+ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
@@ -77,9 +75,9 @@ def train_model_amp_phase(model, input, path, learning_rate=1e-3, num_iter=1, pa
             epoch=it            
         )
 
-        output_afno = model(masked_input)
+        output_afno, output_cnn = model(masked_input)
 
-        loss = F.mse_loss(output_afno * (1 - mask), input * (1 - mask))
+        loss = F.mse_loss(output_afno * (1 - mask), input * (1 - mask)) + F.mse_loss(output_cnn * (1 - mask), input * (1 - mask))
         loss_history.append(loss.item())
 
         optimizer.zero_grad()
@@ -88,12 +86,19 @@ def train_model_amp_phase(model, input, path, learning_rate=1e-3, num_iter=1, pa
 
         model.eval()
         with torch.no_grad():
-            denoised_image= model(input)[2:3, :, :, :]
-            tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image.squeeze().detach().cpu().numpy()), imagej=True)
+            denoised_image_afno, denoised_image_cnn = model(input)
+            tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image_afno.squeeze().detach().cpu().numpy()), imagej=True)
+            tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image_cnn.squeeze().detach().cpu().numpy()), imagej=True)
             if show_image:
                print(f"epoch {it + 1}, loss={loss.item():.6f}")
-               plt.imshow(denoised_image.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
+               plt.figure(figsize=(8, 8)) # Create a new figure for the 4 plots
+               plt.subplot(2,2,1)
+               plt.imshow(denoised_image_afno.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
+               plt.subplot(2,2,2)
+               plt.imshow(denoised_image_cnn.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
                plt.show()
         model.train()
-    np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))       
+    np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
+ 
+     
    
