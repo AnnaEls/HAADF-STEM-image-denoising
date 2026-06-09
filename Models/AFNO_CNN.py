@@ -134,7 +134,7 @@ class AFNOAmpPhaseBlock(nn.Module):
 #===============================
 #Model
 #===============================
-class APAFNO_CNN_Att(nn.Module):
+class APAFNO_CNN(nn.Module):
     def __init__(self,in_channels=1, base_ch=32, depth = 1, hidden_channels_amp = None, hidden_channels_phase = None):
         super().__init__()
         # Encoder
@@ -174,15 +174,16 @@ class APAFNO_CNN_Att(nn.Module):
 
         x_afno = self.bottleneck_afno(x)
 
-        x_unet = self.bottleneck_unet(x)
-        x_unet = self.proj_unet(x_unet)
+        x_cnn = self.bottleneck_unet(x)
+        x_cnn = self.proj_unet(x_cnn)
 
-        x_att = self.CAFFM(x_afno, x_unet)
-        x = x_att
+        for i, up in enumerate(self.ups_afno):
+            x_afno = up(x_afno, skips[self.depth-i-1])     
+       
+        for i, up in enumerate(self.ups_cnn):
+            x_cnn = up(x_cnn, skips[self.depth-i-1])
 
-        for i, up in enumerate(self.ups):
-            x = up(x, skips[self.depth-i-1])
-
-        x = self.out(x)       
+        x_afno = self.out_afno(x_afno)
+        x_cnn = self.out_cnn(x_cnn)       
         
-        return x                      
+        return x_afno, x_cnn                      
