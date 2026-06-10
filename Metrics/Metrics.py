@@ -133,7 +133,7 @@ def calculate_metrics(path, path_to_clean_image, show_graphs=False):
     
     return max_psnr, max_ssim, best_psnr_iteration, best_ssim_iteration, stopping_iter
 
-def calculate_metrics(path, path_to_clean_image, show_graphs=False):
+def calculate_metrics_for_hybrid_model(path, path_to_clean_image, show_graphs=False):
     clean_image = np.array(tifffile.imread(path_to_clean_image))
     # Apply the same conversion to clean_image for consistent comparison
     clean_image_converted = convert(clean_image) # This will be uint8 0-255
