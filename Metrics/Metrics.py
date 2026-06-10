@@ -218,4 +218,4 @@ def calculate_metrics_for_hybrid_model(path, path_to_clean_image, show_graphs=Fa
     np.save(os.path.join(path, 'ssims_afno.npy'), ssims_afno)
     np.save(os.path.join(path, 'psnrs_cnn.npy'), psnrs_cnn)
     np.save(os.path.join(path, 'ssims_cnn.npy'), ssims_cnn)
-    return max_psnr_dfno, max_ssim_dfno, best_psnr_iteration_dfno, best_ssim_iteration_dfno, max_psnr_cnn, max_ssim_cnn, best_psnr_iteration_cnn, best_ssim_iteration_cnn
+    return max_psnr_afno, max_ssim_afno, best_psnr_iteration_afno, best_ssim_iteration_afno, max_psnr_cnn, max_ssim_cnn, best_psnr_iteration_cnn, best_ssim_iteration_cnn
