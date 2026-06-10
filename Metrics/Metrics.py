@@ -132,3 +132,90 @@ def calculate_metrics(path, path_to_clean_image, show_graphs=False):
         plt.show()
     
     return max_psnr, max_ssim, best_psnr_iteration, best_ssim_iteration, stopping_iter
+
+def calculate_metrics(path, path_to_clean_image, show_graphs=False):
+    clean_image = np.array(tifffile.imread(path_to_clean_image))
+    # Apply the same conversion to clean_image for consistent comparison
+    clean_image_converted = convert(clean_image) # This will be uint8 0-255
+
+    psnrs_afno = []
+    ssims_afno = []
+    psnrs_cnn = []
+    ssims_cnn = []
+    iterations = []
+    image_files_afno = sorted([f for f in os.listdir(path) if f.endswith('.tif') and f.startswith('AFNO_')])
+    image_files_cnn = sorted([f for f in os.listdir(path) if f.endswith('.tif') and f.startswith('CNN_')])
+
+    # Ensure both lists have the same number of files for zipping
+    min_len = min(len(image_files_afno), len(image_files_cnn))
+    image_files_afno = image_files_afno[:min_len]
+    image_files_cnn = image_files_cnn[:min_len]
+
+    for image_file_afno, image_file_cnn in zip(image_files_afno, image_files_cnn):
+        denoised_image_afno = np.array(tifffile.imread(os.path.join(path, image_file_afno))) # This is uint8 0-255
+        denoised_image_cnn = np.array(tifffile.imread(os.path.join(path, image_file_cnn)))   # This is uint8 0-255
+        iteration = int(image_file_afno[5:9]) # Assuming format AFNO_XXXX.tif, number starts at index 5
+
+        # Now both clean_image_converted and denoised_images are uint8 0-255
+        current_psnr_afno = psnr_metric(clean_image_converted, denoised_image_afno, data_range=255)
+        current_ssim_afno = ssim_metric(clean_image_converted, denoised_image_afno, data_range=255)
+        current_psnr_cnn = psnr_metric(clean_image_converted, denoised_image_cnn, data_range=255)
+        current_ssim_cnn = ssim_metric(clean_image_converted, denoised_image_cnn, data_range=255)
+
+        psnrs_afno.append(current_psnr_afno)
+        ssims_afno.append(current_ssim_afno)
+        psnrs_cnn.append(current_psnr_cnn)
+        ssims_cnn.append(current_ssim_cnn)
+        iterations.append(iteration)
+
+    if show_graphs:
+        sorted_indices = np.argsort(iterations)
+        iterations = np.array(iterations)[sorted_indices]
+        psnrs_afno = np.array(psnrs_afno)[sorted_indices]
+        ssims_afno = np.array(ssims_afno)[sorted_indices]
+        psnrs_cnn = np.array(psnrs_cnn)[sorted_indices]
+        ssims_cnn = np.array(ssims_cnn)[sorted_indices]
+
+        plt.figure(figsize=(12, 10))
+
+        plt.subplot(2, 2, 1)
+        plt.plot(iterations, psnrs_afno)
+        plt.xlabel('Iterations')
+        plt.ylabel('PSNR AFNO branch')
+        plt.title('PSNR vs. Iterations (AFNO)')
+        plt.grid(True)
+
+        plt.subplot(2, 2, 2)
+        plt.plot(iterations, ssims_afno)
+        plt.xlabel('Iterations')
+        plt.ylabel('SSIM AFNO branch')
+        plt.title('SSIM vs. Iterations (AFNO)')
+        plt.grid(True)
+
+        plt.subplot(2, 2, 3)
+        plt.plot(iterations, psnrs_cnn)
+        plt.xlabel('Iterations')
+        plt.ylabel('PSNR CNN branch')
+        plt.title('PSNR vs. Iterations (CNN)')
+        plt.grid(True)
+
+        plt.subplot(2, 2, 4)
+        plt.plot(iterations, ssims_cnn)
+        plt.xlabel('Iterations')
+        plt.ylabel('SSIM CNN branch')
+        plt.title('SSIM vs. Iterations (CNN)')
+        plt.grid(True)
+
+        plt.tight_layout()
+        plt.show()
+    max_psnr_afno = np.max(psnrs_afno)
+    max_ssim_afno = np.max(ssims_afno)
+    max_psnr_cnn = np.max(psnrs_cnn)
+    max_ssim_cnn = np.max(ssims_cnn)
+    best_psnr_iteration_afno = iterations[np.argmax(psnrs_afno)]
+    best_ssim_iteration_afno = iterations[np.argmax(ssims_afno)]
+    np.save(os.path.join(path, 'psnrs_afno.npy'), psnrs_afno)
+    np.save(os.path.join(path, 'ssims_afno.npy'), ssims_afno)
+    np.save(os.path.join(path, 'psnrs_cnn.npy'), psnrs_cnn)
+    np.save(os.path.join(path, 'ssims_cnn.npy'), ssims_cnn)
+    return max_psnr_afno, max_ssim_afno, best_psnr_iteration_afno, best_ssim_iteration_afno, max_psnr_cnn, max_ssim_cnn
