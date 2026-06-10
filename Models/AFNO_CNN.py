@@ -1,55 +1,3 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-#===============================
-#Encoder and decoder
-#===============================
-#Convolutional block
-class ConvBlock(nn.Module):
-    def __init__(self, in_ch, out_ch):
-        super().__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, 3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(out_ch, out_ch, 3, padding=1),
-            nn.ReLU()
-        )
-    def forward(self, x):
-        return self.conv(x)
-
-#Encoder block
-class EncoderBlock(nn.Module):
-    def __init__(self, in_ch, out_ch):
-        super().__init__()
-        self.conv = ConvBlock(in_ch, out_ch)
-        self.pool = nn.MaxPool2d(2)
-    def forward(self, x):
-        skip = self.conv(x)
-        x = self.pool(skip)
-        return x, skip
-
-#Decoder block
-class DecoderBlock(nn.Module):
-    def __init__(self, in_ch, out_ch):
-        super().__init__()
-        self.up = nn.ConvTranspose2d(in_ch, out_ch, 2, stride=2)
-        self.conv = ConvBlock(2*out_ch, out_ch)
-    def forward(self, x1, x2): # x1: upsampled, x2: skip
-        x1 = self.up(x1)
-
-        # Pad x1 if needed (for odd input sizes)
-        diffY = x2.size()[2] - x1.size()[2]
-        diffX = x2.size()[3] - x1.size()[3]
-        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
-
-        x = torch.cat([x2, x1], dim=1)
-        return self.conv(x) 
-
-#=========================================
-#       APAFNO bottleneck
-#=========================================
 class AFNOAmpPhaseBlock(nn.Module):
     def __init__(
         self,
@@ -131,59 +79,135 @@ class AFNOAmpPhaseBlock(nn.Module):
         return x_out 
 
 
+class MLP(nn.Module):
+    def __init__(self, dim, hidden_dim):
+        super().__init__()
+        self.fc1 = nn.Linear(dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, dim)
+
+    def forward(self, x):
+        x = F.gelu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+
+class AFNOTransformerBlock(nn.Module):
+    def __init__(self, dim, mlp_ratio, hidden_dim_afno):
+        super().__init__()
+        self.afno = AFNOAmpPhaseBlock(dim, hidden_channels_amp=None, hidden_channels_phase=None)
+        self.mlp = MLP(dim, int(dim * mlp_ratio))
+        # Normalization layers
+        self.norm1 = nn.LayerNorm(dim)  # before AFNO
+        self.norm2 = nn.LayerNorm(dim)  # before MLP
+
+    def forward(self, x, skip):
+        B, C, H, W = x.shape
+
+        # --- Skip 1 around AFNO ---
+        skip_1 = x
+
+        #----Norm1
+        x = self.norm1(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+
+        x = self.afno(x) + skip_1
+
+        # --- Skip 2 around MLP ---
+        x_perm = x.permute(0, 2, 3, 1)
+
+        x_perm = self.norm2(x_perm)
+
+        x = self.mlp(x_perm.contiguous().view(B, H * W, C))
+        x = x.view(B, H, W, C)
+
+        x = x.permute(0, 3, 1, 2).contiguous()
+
+        return x
+
+#===============================
+#Encoder and decoder
+#===============================
+#Convolutional block
+class ConvBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 3, padding=1),
+            nn.GELU(),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1),
+            nn.GELU()
+        )
+    def forward(self, x):
+        return self.conv(x)
+
+#Encoder block
+class EncoderBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.conv = ConvBlock(in_ch, out_ch)
+        self.pool = nn.MaxPool2d(2)
+    def forward(self, x):
+        skip = self.conv(x)
+        x = self.pool(skip)
+        return x, skip
+
+#Decoder block
+class DecoderBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.up = nn.ConvTranspose2d(in_ch, out_ch, 2, stride=2)
+        self.conv = ConvBlock(2*out_ch, out_ch)
+    def forward(self, x1, x2, skip = True): # x1: upsampled, x2: skip
+        x1 = self.up(x1)
+
+        # Pad x1 if needed (for odd input sizes)
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+
+        x = torch.cat([x2, x1], dim=1)
+        return self.conv(x)
+
 #===============================
 #Model
 #===============================
-class APAFNO_CNN(nn.Module):
-    def __init__(self,in_channels=1, base_ch=32, depth = 1, hidden_channels_amp = None, hidden_channels_phase = None):
+class DFNO(nn.Module):
+    def __init__(self,in_channels=1,base_ch=32, depth=3, mlp_ratio=6, hidden_dim_afno=64):
         super().__init__()
         # Encoder
-        self.depth = depth
-        self.downs = nn.ModuleList()
-        self.ups_afno = nn.ModuleList()
-        self.ups_cnn = nn.ModuleList()
-        
-        for i in range(depth):
-            if i == 0:
-                self.downs.append(EncoderBlock(in_channels, base_ch))
-            else:
-                self.downs.append(EncoderBlock(base_ch*2**(i-1), base_ch*2**i))
+        self.encoder = EncoderBlock(in_channels, base_ch)
 
-        # Bottleneck
-        self.bottleneck_afno = AFNOAmpPhaseBlock(channels=base_ch*2**(depth-1), hidden_channels_amp=hidden_channels_amp, hidden_channels_phase=hidden_channels_phase)
-        self.bottleneck_unet = ConvBlock(base_ch*2**(depth-1), base_ch*2**depth)
-        self.proj_unet = nn.Conv2d(base_ch*2**depth, base_ch*2**(depth-1), 1)
+        #Bottleneck
+        self.bottleneck_afno =nn.ModuleList([
+            AFNOTransformerBlock(base_ch, mlp_ratio, hidden_dim_afno)
+            for _ in range(depth)
+        ])
+        self.bottleneck_cnn = ConvBlock(base_ch, base_ch*2)
+        self.proj = nn.Conv2d(base_ch*2, base_ch, 1)
 
-        for i in range(depth):
-            if i == 0:
-                self.ups_afno.append(DecoderBlock(base_ch*2**(depth-1), base_ch*2**(depth-1)))
-                self.ups_cnn.append(DecoderBlock(base_ch*2**(depth-1), base_ch*2**(depth-1)))
-            else:
-                self.ups_afno.append(DecoderBlock(base_ch*2**(depth-i), base_ch*2**(depth-i-1)))
-                self.ups_cnn.append(DecoderBlock(base_ch*2**(depth-i), base_ch*2**(depth-i-1)))
-        
-        self.out_afno = nn.Conv2d(base_ch, in_channels, 1)
-        self.out_cnn = nn.Conv2d(base_ch, in_channels, 1)
+        # Decoder
+        self.decoder_cnn = DecoderBlock(base_ch, base_ch)
+        self.decoder_afno = DecoderBlock(base_ch, base_ch)
+
+        self.out_conv_afno = nn.Conv2d(base_ch, in_channels,  1)
+        self.out_conv_cnn = nn.Conv2d(base_ch, in_channels,  1)
+
 
     def forward(self, x):
-        skips = []
-        for i, down in enumerate(self.downs):
-            x, skip = down(x)
-            skips.append(skip)
-            
+        # Encoder
+        x_cnn, skip_1 = self.encoder(x) #common encoder
+        x_afno = x_cnn
 
-        x_afno = self.bottleneck_afno(x)
+        #Bottleneck
+        x_cnn = self.bottleneck_cnn(x_cnn)
+        x_cnn = self.proj(x_cnn)
 
-        x_cnn = self.bottleneck_unet(x)
-        x_cnn = self.proj_unet(x_cnn)
+        for blk in self.bottleneck_afno:
+           x_afno = blk(x_afno,x_cnn)
 
-        for i, up in enumerate(self.ups_afno):
-            x_afno = up(x_afno, skips[self.depth-i-1])     
-       
-        for i, up in enumerate(self.ups_cnn):
-            x_cnn = up(x_cnn, skips[self.depth-i-1])
+        y_afno = self.decoder_afno(x_afno, skip_1)
+        y_cnn = self.decoder_cnn(x_cnn, skip_1)
 
-        x_afno = self.out_afno(x_afno)
-        x_cnn = self.out_cnn(x_cnn)       
-        
-        return x_afno, x_cnn                      
+        y_afno = self.out_conv_afno(y_afno)
+        y_cnn = self.out_conv_cnn(y_cnn)
+
+        return y_afno, y_cnn
