@@ -86,7 +86,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
 
         model.eval()
         with torch.no_grad():
-            denoised_image_afno, denoised_image_cnn = model(noisy_image_tensor)
+            denoised_image_afno, denoised_image_cnn = model(input)
             tifffile.imwrite(f'{path}/AFNO_{(it+1):04d}.tif', convert(denoised_image_afno.squeeze().detach().cpu().numpy()), imagej=True)
             tifffile.imwrite(f'{path}/CNN_{(it+1):04d}.tif', convert(denoised_image_cnn.squeeze().detach().cpu().numpy()), imagej=True)
             if show_image:
