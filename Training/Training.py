@@ -86,9 +86,9 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
 
         model.eval()
         with torch.no_grad():
-            denoised_image_afno, denoised_image_cnn = model(input)
-            tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image_afno.squeeze().detach().cpu().numpy()), imagej=True)
-            tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image_cnn.squeeze().detach().cpu().numpy()), imagej=True)
+            denoised_image_afno, denoised_image_cnn = model(noisy_image_tensor)
+            tifffile.imwrite(f'{path}/AFNO_{(it+1):04d}.tif', convert(denoised_image_afno.squeeze().detach().cpu().numpy()), imagej=True)
+            tifffile.imwrite(f'{path}/CNN_{(it+1):04d}.tif', convert(denoised_image_cnn.squeeze().detach().cpu().numpy()), imagej=True)
             if show_image:
                print(f"epoch {it + 1}, loss={loss.item():.6f}")
                plt.figure(figsize=(8, 8)) # Create a new figure for the 4 plots
@@ -96,6 +96,9 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
                plt.imshow(denoised_image_afno.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
                plt.subplot(2,2,2)
                plt.imshow(denoised_image_cnn.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
+               #plt.subplot(2,2,3)
+               #plt.imshow(denoised_image_fused.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
+
                plt.show()
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
