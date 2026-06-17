@@ -1,3 +1,12 @@
+#####################################################################
+# Strain mapping is based on the method developed in:
+# Xiaonan Luo, Aakash Varambhia, Weixin Song, Dogan Ozkaya, Sergio Lozano-Perez, Peter D. Nellist,
+#High-precision atomic-scale strain mapping of nanoparticles from STEM images,
+#Ultramicroscopy, Volume 239, 2022, 113561, ISSN 0304-3991,
+#https://doi.org/10.1016/j.ultramic.2022.113561.
+#(https://www.sciencedirect.com/science/article/pii/S0304399122000936)
+#################################################################################
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
