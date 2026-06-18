@@ -283,7 +283,7 @@ class DecoderBlock(nn.Module):
 #===============================
 #Model
 #===============================
-class DFNO(nn.Module):
+class DFNO_DD(nn.Module):
     def __init__(self,in_channels=1,base_ch=32, depth=3, mlp_ratio=6, hidden_dim_afno=64, add_dilation = (3,3)):
         super().__init__()
         # Encoder
