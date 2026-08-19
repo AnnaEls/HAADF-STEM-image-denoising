@@ -104,7 +104,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
  
      
- def train_hybrid_model_with_validation(
+def train_hybrid_model_with_validation(
     model,
     input,
     path,
