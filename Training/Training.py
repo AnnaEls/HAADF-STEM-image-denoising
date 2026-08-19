@@ -113,6 +113,7 @@ def train_hybrid_model_with_validation(
     patch_size=1,
     mask_ratio=0.2,
     val_ratio=0.05,
+    early_stopping = False,
     patience=30,
     min_delta=1e-5,
     show_image=False,
@@ -291,29 +292,15 @@ def train_hybrid_model_with_validation(
         # CHECKPOINT / EARLY STOPPING
         # ========================================================
 
-        if val_loss.item() < best_val_loss - min_delta:
-
-            best_val_loss = val_loss.item()
-
-            best_epoch = it
-
-            counter = 0
-
-            best_state = copy.deepcopy(
-                model.state_dict()
-            )
-
-            torch.save(
-                best_state,
-                os.path.join(
-                    path,
-                    "best_model.pt"
-                )
-            )
-
-        else:
-
-            counter += 1
+        if early_stopping:
+            if val_loss.item() < best_val_loss - min_delta:
+                best_val_loss = val_loss.item()
+                best_epoch = it
+                counter = 0
+                best_state = copy.deepcopy(model.state_dict())
+                torch.save(best_state,os.path.join(path,"best_model.pt"))
+            else:
+                counter += 1
 
         # ========================================================
         # FULL IMAGE RECONSTRUCTION
@@ -407,22 +394,12 @@ def train_hybrid_model_with_validation(
         # EARLY STOP
         # ========================================================
 
-        if counter >= patience:
-
-            print(
-                f"\nEarly stopping at epoch {it+1}"
-            )
-
-            print(
-                f"Best epoch: {best_epoch+1}"
-            )
-
-            print(
-                f"Best validation loss: "
-                f"{best_val_loss:.6f}"
-            )
-
-            break
+        if early_stopping:
+            if counter >= patience:
+                print(f"\nEarly stopping at epoch {it+1}")
+                print( f"Best epoch: {best_epoch+1}")
+                print(f"Best validation loss: "f"{best_val_loss:.6f}")
+                break
 
     # ============================================================
     # RESTORE BEST MODEL
@@ -451,59 +428,7 @@ def train_hybrid_model_with_validation(
         np.array(val_loss_history)
     )
 
-    # ============================================================
-    # SAVE BEST RECONSTRUCTION
-    # ============================================================
-
-    model.eval()
-
-    with torch.no_grad():
-
-        best_afno, best_cnn = model(input)
-
-    tifffile.imwrite(
-        os.path.join(
-            path,
-            "AFNO_best.tif"
-        ),
-        convert(
-            best_afno
-            .squeeze()
-            .cpu()
-            .numpy()
-        ),
-        imagej=True
-    )
-
-    tifffile.imwrite(
-        os.path.join(
-            path,
-            "CNN_best.tif"
-        ),
-        convert(
-            best_cnn
-            .squeeze()
-            .cpu()
-            .numpy()
-        ),
-        imagej=True
-    )
-
-    print(
-        f"\nBest epoch = {best_epoch+1}"
-    )
-
-    print(
-        f"Best validation loss = "
-        f"{best_val_loss:.6f}"
-    )
-
-    return (
-        model,
-        np.array(loss_history),
-        np.array(val_loss_history),
-        best_epoch
-    )  
+    
 
 def masked_mse(pred, target, target_mask):
     """
