@@ -507,3 +507,17 @@ def train_hybrid_model_with_validation(
         np.array(val_loss_history),
         best_epoch
     )  
+
+def masked_mse(pred, target, target_mask):
+    """
+    MSE calculated ONLY on selected target pixels.
+
+    target_mask:
+        True = pixel included in loss
+    """
+
+    target_mask = target_mask.expand_as(pred)
+
+    return (
+        (pred - target) ** 2
+    )[target_mask].mean()
