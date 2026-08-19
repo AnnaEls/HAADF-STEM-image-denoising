@@ -138,7 +138,7 @@ def train_hybrid_model_with_validation(
     # FIXED VALIDATION PIXELS
     # ============================================================
 
-    val_mask = make_validation_mask(
+    val_mask = random_validation_mask(
         input,
         val_ratio=val_ratio,
         seed=val_seed
@@ -185,7 +185,7 @@ def train_hybrid_model_with_validation(
         # Generate a NEW random training mask each epoch
         # --------------------------------------------------------
 
-        masked_input, mask = random_patch_mask(
+        masked_input, mask = random_patch_mask_with_validation(
             input,
             patch_size=patch_size,
             mask_ratio=mask_ratio,
