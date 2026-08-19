@@ -281,10 +281,7 @@ def train_hybrid_model_with_validation(
                 val_mask
             )
 
-            val_loss = (
-                val_loss_afno +
-                val_loss_cnn
-            )
+            val_loss = val_loss_afno 
 
         val_loss_history.append(
             val_loss.item()
