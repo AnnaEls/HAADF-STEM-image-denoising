@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 
-from Training.Masking import random_patch_mask
+from Training.Masking import random_patch_mask, random_validation_mask, random_patch_mask_with_validation
 from Utilities.Utils import convert 
 
 import os
