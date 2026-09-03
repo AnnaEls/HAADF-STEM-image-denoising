@@ -132,9 +132,9 @@ class ConvBlock(nn.Module):
         super().__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, 3, padding=1),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Conv2d(out_ch, out_ch, 3, padding=1),
-            nn.GELU()
+            nn.ReLU()
         )
     def forward(self, x):
         return self.conv(x)
