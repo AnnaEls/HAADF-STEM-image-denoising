@@ -172,62 +172,190 @@ class DecoderBlock(nn.Module):
 #Model
 #===============================
 class hybrid_model(nn.Module):
-    def __init__(self,in_channels=1,base_ch=32, depth=3, mlp_ratio=6, hidden_dim_afno=64, depth_cnn = 1):
+    def __init__(
+        self,
+        in_channels=1,
+        base_ch=32,
+        depth=3,
+        mlp_ratio=6,
+        hidden_dim_afno=64,
+        depth_cnn=1
+    ):
         super().__init__()
+
         self.depth_cnn = depth_cnn
-        # Encoder: common encoder
+
+        # ============================================================
+        # SHARED FIRST ENCODER LAYER
+        # ============================================================
         self.encoder = EncoderBlock(in_channels, base_ch)
 
-        #CNN branch
+        # ============================================================
+        # CNN BRANCH
+        # ============================================================
         self.downs_cnn = nn.ModuleList()
         self.ups_cnn = nn.ModuleList()
 
-        # Fix: Remove the 'if depth_cnn > 1' condition to ensure downs_cnn is populated correctly
+        # Additional CNN encoder stages AFTER shared encoder
+        #
+        # depth_cnn = 1:
+        # shared encoder: 1 -> 32
+        # CNN encoder:    32 -> 64
+        #
+        # depth_cnn = 2:
+        # shared encoder: 1 -> 32
+        # CNN encoder 1: 32 -> 64
+        # CNN encoder 2: 64 -> 128
         for i in range(depth_cnn):
-              self.downs_cnn.append(EncoderBlock(base_ch*2**i, base_ch*2**(i+1)))
-        self.bottleneck_cnn = ConvBlock(base_ch*2**depth_cnn, base_ch*2**depth_cnn)
+            in_ch = base_ch * (2 ** i)
+            out_ch = base_ch * (2 ** (i + 1))
 
-        for i in range(depth_cnn):
-            if i == 0:
-                self.ups_cnn.append(DecoderBlock(base_ch*2**depth_cnn, base_ch*2**(depth_cnn-1)))
-            else:
-                self.ups_cnn.append(DecoderBlock(base_ch*2**(depth_cnn-i), base_ch*2**(depth_cnn-i-1)))
+            self.downs_cnn.append(
+                EncoderBlock(in_ch, out_ch)
+            )
 
-        self.out_conv_cnn = nn.Conv2d(base_ch, in_channels,  1)
+        # CNN bottleneck
+        bottleneck_in = base_ch * (2 ** depth_cnn)
+        bottleneck_out = base_ch * (2 ** (depth_cnn + 1))
 
+        self.bottleneck_cnn = ConvBlock(
+            bottleneck_in,
+            bottleneck_out
+        )
 
-        #Fourier branch
-        #Bottleneck
-        self.bottleneck_afno =nn.ModuleList([
-            AFNOTransformerBlock(base_ch, mlp_ratio, hidden_dim_afno)
+        # ------------------------------------------------------------
+        # CNN decoder
+        # ------------------------------------------------------------
+
+        current_ch = bottleneck_out
+
+        # Decoder stages corresponding to CNN-specific encoder stages
+        for i in reversed(range(depth_cnn)):
+
+            skip_ch = base_ch * (2 ** (i + 1))
+
+            self.ups_cnn.append(
+                DecoderBlock(
+                    current_ch,
+                    skip_ch
+                )
+            )
+
+            current_ch = skip_ch
+
+        # Final CNN decoder stage corresponding to SHARED encoder
+        self.decoder_shared_cnn = DecoderBlock(
+            current_ch,
+            base_ch
+        )
+
+        self.out_conv_cnn = nn.Conv2d(
+            base_ch,
+            in_channels,
+            kernel_size=1
+        )
+
+        # ============================================================
+        # FOURIER / AFNO BRANCH
+        # ============================================================
+
+        # AFNO operates directly on output of shared encoder
+        self.bottleneck_afno = nn.ModuleList([
+            AFNOTransformerBlock(
+                base_ch,
+                mlp_ratio,
+                hidden_dim_afno
+            )
             for _ in range(depth)
         ])
-        self.decoder_afno = DecoderBlock(base_ch, base_ch)
-        self.out_conv_afno = nn.Conv2d(base_ch, in_channels,  1)
 
+        # AFNO decoder uses skip from shared encoder
+        self.decoder_afno = DecoderBlock(
+            base_ch,
+            base_ch
+        )
+
+        self.out_conv_afno = nn.Conv2d(
+            base_ch,
+            in_channels,
+            kernel_size=1
+        )
 
     def forward(self, x):
-        # Common encoder
-        x_cnn, skip_1 = self.encoder(x) #common encoder
-        x_afno = x_cnn
 
-        #Fourier branch
+        # ============================================================
+        # SHARED FIRST ENCODER
+        # ============================================================
+
+        x_shared, skip_1 = self.encoder(x)
+
+        # x_shared:
+        # [B, base_ch, H/2, W/2]
+        #
+        # skip_1:
+        # [B, base_ch, H, W]
+
+        # Both branches start from exactly the same encoded feature map
+        x_afno = x_shared
+        x_cnn = x_shared
+
+        # ============================================================
+        # AFNO BRANCH
+        # ============================================================
+
         for blk in self.bottleneck_afno:
-           x_afno = blk(x_afno,x_cnn)
-        y_afno = self.decoder_afno(x_afno, skip_1)
+            x_afno = blk(x_afno, x_shared)
+
+        # Restore H x W using shared skip
+        y_afno = self.decoder_afno(
+            x_afno,
+            skip_1
+        )
+
         y_afno = self.out_conv_afno(y_afno)
 
-        #CNN branch
-        skips = [skip_1]
-        for i, down in enumerate(self.downs_cnn):
-            x_cnn, skip = down(x_cnn)
-            skips.append(skip)
+        # ============================================================
+        # CNN BRANCH
+        # ============================================================
 
+        cnn_skips = []
+
+        # Additional CNN encoder levels
+        for down in self.downs_cnn:
+
+            x_cnn, skip = down(x_cnn)
+
+            cnn_skips.append(skip)
+
+        # CNN bottleneck
         x_cnn = self.bottleneck_cnn(x_cnn)
 
+        # ------------------------------------------------------------
+        # Decode CNN-specific levels
+        # ------------------------------------------------------------
+
         for i, up in enumerate(self.ups_cnn):
-            x_cnn = up(x_cnn, skips[self.depth_cnn-i-1])
+
+            # Reverse skip order:
+            # deepest skip first
+            skip = cnn_skips[-(i + 1)]
+
+            x_cnn = up(
+                x_cnn,
+                skip
+            )
+
+        # ------------------------------------------------------------
+        # Final decoder uses SHARED first-encoder skip
+        # ------------------------------------------------------------
+
+        x_cnn = self.decoder_shared_cnn(
+            x_cnn,
+            skip_1
+        )
 
         y_cnn = self.out_conv_cnn(x_cnn)
+
+        return y_afno, y_cnn
 
         return y_afno, y_cnn
