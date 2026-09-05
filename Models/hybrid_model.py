@@ -41,7 +41,7 @@ class AFNOAmpPhaseBlock(nn.Module):
         x: (B, C, H, W)
         """
         B, C, H, W = x.shape
-        
+
         # ---- FFT ----
         x_fft = torch.fft.fft2(x, norm='ortho')  # (B,C,H,W), complex
 
@@ -76,8 +76,8 @@ class AFNOAmpPhaseBlock(nn.Module):
 
         # ---- inverse FFT ----
         x_out = torch.fft.ifft2(x_fft_out, norm='ortho').real
-       
-        return x_out 
+
+        return x_out
 
 
 class MLP(nn.Module):
@@ -181,18 +181,18 @@ class hybrid_model(nn.Module):
         #CNN branch
         self.downs_cnn = nn.ModuleList()
         self.ups_cnn = nn.ModuleList()
-        
-        if depth_cnn > 1:
-            for i in range(depth_cnn):
-                  self.downs_cnn.append(EncoderBlock(base_ch*2**i, base_ch*2**(i+1)))    
+
+        # Fix: Remove the 'if depth_cnn > 1' condition to ensure downs_cnn is populated correctly
+        for i in range(depth_cnn):
+              self.downs_cnn.append(EncoderBlock(base_ch*2**i, base_ch*2**(i+1)))
         self.bottleneck_cnn = ConvBlock(base_ch*2**depth_cnn, base_ch*2**depth_cnn)
 
         for i in range(depth_cnn):
             if i == 0:
-                self.ups_cnn.append(DecoderBlock(base_ch*2**depth_cnn, base_ch*2**(depth_cnn-1))) 
+                self.ups_cnn.append(DecoderBlock(base_ch*2**depth_cnn, base_ch*2**(depth_cnn-1)))
             else:
                 self.ups_cnn.append(DecoderBlock(base_ch*2**(depth_cnn-i), base_ch*2**(depth_cnn-i-1)))
-        
+
         self.out_conv_cnn = nn.Conv2d(base_ch, in_channels,  1)
 
 
@@ -204,7 +204,7 @@ class hybrid_model(nn.Module):
         ])
         self.decoder_afno = DecoderBlock(base_ch, base_ch)
         self.out_conv_afno = nn.Conv2d(base_ch, in_channels,  1)
-      
+
 
     def forward(self, x):
         # Common encoder
@@ -218,16 +218,16 @@ class hybrid_model(nn.Module):
         y_afno = self.out_conv_afno(y_afno)
 
         #CNN branch
-        skips = [skip_1] 
+        skips = [skip_1]
         for i, down in enumerate(self.downs_cnn):
             x_cnn, skip = down(x_cnn)
             skips.append(skip)
 
-        x_cnn = self.bottleneck_cnn(x_cnn)       
-        
+        x_cnn = self.bottleneck_cnn(x_cnn)
+
         for i, up in enumerate(self.ups_cnn):
             x_cnn = up(x_cnn, skips[self.depth_cnn-i-1])
 
-        y_cnn = self.out_conv_cnn(x_cnn)           
-       
+        y_cnn = self.out_conv_cnn(x_cnn)
+
         return y_afno, y_cnn
