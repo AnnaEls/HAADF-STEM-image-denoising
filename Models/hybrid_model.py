@@ -172,26 +172,44 @@ class DecoderBlock(nn.Module):
 #Model
 #===============================
 class hybrid_model(nn.Module):
-    def __init__(self,in_channels=1,base_ch=32, depth=3, mlp_ratio=6, hidden_dim_afno=64):
+    def __init__(self,in_channels=1,base_ch=32, depth=3, mlp_ratio=6, hidden_dim_afno=64, depth_cnn = 1):
         super().__init__()
-        # Encoder
+        # Encoder: common encoder
         self.encoder = EncoderBlock(in_channels, base_ch)
 
+        #CNN branch
+        self.downs_cnn = nn.ModuleList()
+        self.ups_cnn = nn.ModuleList()
+        
+        if depth_cnn > 1:
+            for i in range(depth_cnn):
+                  self.downs_cnn.append(EncoderBlock(base_ch*2**i, base_ch*2**(i+1)))    
+        self.bottleneck_cnn = ConvBlock(base_ch*2**(depth_cnn-1), base_ch*2**depth_cnn)
+
+        for i in range(depth_cnn):
+            if i == 0:
+                self.ups_cnn.append(DecoderBlock(base_ch*2**depth_cnn, base_ch*2**(depth_cnn-1))) 
+            else:
+                self.ups_cnn.append(DecoderBlock(base_ch*2**(depth_cnn-i), base_ch*2**(depth_cnn-i-1)))
+        
+        self.out = nn.Conv2d(base_ch, in_channels, 1)
+
+        
+         self.proj = nn.Conv2d(base_ch*2, base_ch, 1)
+        
+          self.out_conv_cnn = nn.Conv2d(base_ch, in_channels,  1)
+
+
+        
+        #Fourier branch
         #Bottleneck
         self.bottleneck_afno =nn.ModuleList([
             AFNOTransformerBlock(base_ch, mlp_ratio, hidden_dim_afno)
             for _ in range(depth)
         ])
-        self.bottleneck_cnn = ConvBlock(base_ch, base_ch*2)
-        self.proj = nn.Conv2d(base_ch*2, base_ch, 1)
-
-        # Decoder
-        self.decoder_cnn = DecoderBlock(base_ch, base_ch)
         self.decoder_afno = DecoderBlock(base_ch, base_ch)
-
         self.out_conv_afno = nn.Conv2d(base_ch, in_channels,  1)
-        self.out_conv_cnn = nn.Conv2d(base_ch, in_channels,  1)
-
+      
 
     def forward(self, x):
         # Encoder
