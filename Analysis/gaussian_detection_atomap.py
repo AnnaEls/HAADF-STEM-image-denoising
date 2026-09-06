@@ -239,60 +239,6 @@ def classify_false_positives_by_lattice_symmetry(
 
     return good_fp, bad_fp
 
-def classify_false_positives_by_lattice_symmetry(
-    noisy_xy,
-    false_positive_indices,
-    lattice_xy,
-    lattice_tolerance=3.0,
-):
-    """
-    Classify false positives based on generated lattice positions.
-
-    Bad FP:
-        unmatched noisy Gaussian that sits close to a symmetry-derived
-        lattice position.
-
-    Good FP:
-        unmatched noisy Gaussian that does not sit on the generated lattice.
-    """
-
-    noisy_xy = np.asarray(noisy_xy, dtype=float)
-    lattice_xy = np.asarray(lattice_xy, dtype=float)
-
-    false_positive_indices = list(false_positive_indices)
-
-    good_fp = []
-    bad_fp = []
-
-    if len(false_positive_indices) == 0:
-        return good_fp, bad_fp
-
-    fp_xy = noisy_xy[false_positive_indices]
-
-    tree = cKDTree(lattice_xy)
-
-    nearest_distances, nearest_lattice_indices = tree.query(fp_xy, k=1)
-
-    for fp_idx, nearest_dist, nearest_lattice_idx in zip(
-        false_positive_indices,
-        nearest_distances,
-        nearest_lattice_indices,
-    ):
-        info = {
-            "false_positive_index": int(fp_idx),
-            "false_positive_xy": noisy_xy[fp_idx],
-            "nearest_lattice_index": int(nearest_lattice_idx),
-            "nearest_lattice_xy": lattice_xy[nearest_lattice_idx],
-            "distance_to_lattice_position": float(nearest_dist),
-        }
-
-        if nearest_dist <= lattice_tolerance:
-            bad_fp.append(info)
-        else:
-            good_fp.append(info)
-
-    return good_fp, bad_fp
-
 
 def compare_sublattices_with_lattice_fp_classification(
     reference_sublattice,
