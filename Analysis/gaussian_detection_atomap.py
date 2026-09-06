@@ -135,6 +135,170 @@ def estimate_lattice_vectors_from_points(xy, neighbor_radius=25):
 
     return a, b
 
+def estimate_hexagonal_lattice_vectors_from_points(
+    xy,
+    neighbor_radius=25,
+    angle_tolerance_deg=15
+):
+    """
+    Estimate primitive lattice vectors for a 2D hexagonal/triangular lattice.
+
+    Returns two nearest-neighbor lattice vectors a and b
+    with approximately equal length and ~60 degree angle.
+    """
+
+    xy = np.asarray(xy, dtype=float)
+
+    tree = cKDTree(xy)
+    vectors = []
+
+    # --------------------------------------------------
+    # Collect neighbor displacement vectors
+    # --------------------------------------------------
+    for p in xy:
+
+        idxs = tree.query_ball_point(p, r=neighbor_radius)
+
+        for idx in idxs:
+
+            q = xy[idx]
+            v = q - p
+
+            d = np.linalg.norm(v)
+
+            if d > 1e-6:
+                vectors.append(v)
+
+    vectors = np.asarray(vectors)
+
+    if len(vectors) == 0:
+        raise ValueError("No neighbor vectors found.")
+
+    lengths = np.linalg.norm(vectors, axis=1)
+
+    # --------------------------------------------------
+    # Estimate nearest-neighbor distance
+    #
+    # KD-tree nearest-neighbor distance is much safer
+    # than median(all vectors), especially for hex lattice.
+    # --------------------------------------------------
+    dists, _ = tree.query(xy, k=2)
+
+    nn_distance = np.median(dists[:, 1])
+
+    # Keep only first coordination shell
+    shell = (
+        (lengths > 0.7 * nn_distance) &
+        (lengths < 1.3 * nn_distance)
+    )
+
+    short_vectors = vectors[shell]
+
+    if len(short_vectors) == 0:
+        raise ValueError("Could not identify first neighbor shell.")
+
+    # --------------------------------------------------
+    # Convert vector orientation to angles.
+    #
+    # Opposite directions are equivalent:
+    # theta and theta + pi represent same lattice axis.
+    # --------------------------------------------------
+    angles = np.arctan2(
+        short_vectors[:, 1],
+        short_vectors[:, 0]
+    )
+
+    angles = np.mod(angles, np.pi)
+
+    # --------------------------------------------------
+    # Find dominant first lattice direction
+    # using circular histogram
+    # --------------------------------------------------
+    bins = 180
+
+    hist, edges = np.histogram(
+        angles,
+        bins=bins,
+        range=(0, np.pi)
+    )
+
+    theta_a = 0.5 * (
+        edges[np.argmax(hist)] +
+        edges[np.argmax(hist) + 1]
+    )
+
+    # Average vectors close to theta_a
+    def angular_difference(theta1, theta2):
+        """
+        Difference between unoriented lattice directions.
+        """
+        d = np.abs(theta1 - theta2)
+        return np.minimum(d, np.pi - d)
+
+    tol = np.deg2rad(angle_tolerance_deg)
+
+    mask_a = angular_difference(
+        angles,
+        theta_a
+    ) < tol
+
+    vecs_a = short_vectors[mask_a]
+
+    # Orient consistently
+    direction_a = np.array([
+        np.cos(theta_a),
+        np.sin(theta_a)
+    ])
+
+    vecs_a = np.array([
+        v if np.dot(v, direction_a) > 0 else -v
+        for v in vecs_a
+    ])
+
+    a = np.median(vecs_a, axis=0)
+
+    # --------------------------------------------------
+    # Second primitive direction should be ±60° from a
+    # --------------------------------------------------
+    theta_b1 = np.mod(theta_a + np.pi / 3, np.pi)
+    theta_b2 = np.mod(theta_a - np.pi / 3, np.pi)
+
+    diff1 = angular_difference(angles, theta_b1)
+    diff2 = angular_difference(angles, theta_b2)
+
+    if np.sum(diff1 < tol) >= np.sum(diff2 < tol):
+        theta_b = theta_b1
+        mask_b = diff1 < tol
+    else:
+        theta_b = theta_b2
+        mask_b = diff2 < tol
+
+    vecs_b = short_vectors[mask_b]
+
+    direction_b = np.array([
+        np.cos(theta_b),
+        np.sin(theta_b)
+    ])
+
+    vecs_b = np.array([
+        v if np.dot(v, direction_b) > 0 else -v
+        for v in vecs_b
+    ])
+
+    b = np.median(vecs_b, axis=0)
+
+    # --------------------------------------------------
+    # Ensure a-b angle is ~60 rather than 120 degrees
+    # --------------------------------------------------
+    cos_angle = np.dot(a, b) / (
+        np.linalg.norm(a) * np.linalg.norm(b)
+    )
+
+    if cos_angle < 0:
+        b = -b
+
+    return a, b
+
 def generate_lattice_positions(xy, a, b, image_shape=None, margin=20):
     """
     Generate ideal lattice positions using origin p0 and lattice vectors a, b.
