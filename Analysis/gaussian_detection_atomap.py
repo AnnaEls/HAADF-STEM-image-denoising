@@ -458,17 +458,17 @@ def compare_sublattices_with_lattice_fp_classification(
             false_negatives.discard(ref_idx)
             false_positives.discard(noisy_idx)
 
-  # Estimate lattice symmetry from reference positions  
-  if hexagonal:
-    a, b = estimate_hexagonal_lattice_vectors_from_points(
-        ref_xy,
-        neighbor_radius=neighbor_radius,
-    )
-  else:
-    a, b = estimate_lattice_vectors_from_points(
-        ref_xy,
-        neighbor_radius=neighbor_radius,
-    )
+    # Estimate lattice symmetry from reference positions  
+    if hexagonal:
+      a, b = estimate_hexagonal_lattice_vectors_from_points(
+          ref_xy,
+          neighbor_radius=neighbor_radius,
+      )
+    else:
+      a, b = estimate_lattice_vectors_from_points(
+          ref_xy,
+          neighbor_radius=neighbor_radius,
+      )
 
     # Generate ideal lattice positions
     lattice_xy = generate_lattice_positions(
