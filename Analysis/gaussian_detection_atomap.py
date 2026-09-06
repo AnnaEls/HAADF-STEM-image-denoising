@@ -407,6 +407,7 @@ def classify_false_positives_by_lattice_symmetry(
 def compare_sublattices_with_lattice_fp_classification(
     reference_sublattice,
     noisy_sublattice,
+    hexagonal = False,
     image_shape=None,
     match_tolerance=3.0,
     lattice_tolerance=3.0,
@@ -457,7 +458,13 @@ def compare_sublattices_with_lattice_fp_classification(
             false_negatives.discard(ref_idx)
             false_positives.discard(noisy_idx)
 
-    # Estimate lattice symmetry from reference positions
+  # Estimate lattice symmetry from reference positions  
+  if hexagonal:
+    a, b = estimate_hexagonal_lattice_vectors_from_points(
+        ref_xy,
+        neighbor_radius=neighbor_radius,
+    )
+  else:
     a, b = estimate_lattice_vectors_from_points(
         ref_xy,
         neighbor_radius=neighbor_radius,
