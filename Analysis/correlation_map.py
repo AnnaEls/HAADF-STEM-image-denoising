@@ -19,7 +19,8 @@ def pearson_correlation_map(image_1, image_2, a1, a2):
   H, W = A.shape
 
   # Average image for lattice estimation
-  I_smooth = gaussian_filter(A, sigma=1.0)
+  I = 0.5*(A+B)
+  I_smooth = gaussian_filter(I, sigma=1.0)
 
   #Detect visible atoms only to estimate the lattice
   detected_yx = peak_local_max(
