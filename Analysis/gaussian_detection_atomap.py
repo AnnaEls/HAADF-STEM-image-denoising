@@ -378,8 +378,7 @@ def plot_vacancies(
         )
 
     ax.axis("off")
-    ax.legend()
-
+    
     plt.tight_layout()
     plt.show()
 
