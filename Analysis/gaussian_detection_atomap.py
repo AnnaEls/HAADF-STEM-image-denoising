@@ -360,7 +360,7 @@ def plot_vacancies(
             atom_xy[:, 0],
             atom_xy[:, 1],
             marker="x",
-            s=35,
+            s=s_a,
             c="lime",
             linewidths=1.3,
             label="Detected atoms"
@@ -370,7 +370,7 @@ def plot_vacancies(
         ax.scatter(
             vacancy_xy[:, 0],
             vacancy_xy[:, 1],
-            s=s_V,
+            s=s_v,
             facecolors="none",
             edgecolors="lime",
             linewidths=2.5,
