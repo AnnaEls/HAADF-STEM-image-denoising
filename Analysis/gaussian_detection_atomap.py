@@ -340,6 +340,8 @@ def plot_vacancies(
     image,
     clean_sublattice,
     vacancy_xy,
+    s_v = 250,
+    s_a = 35,
     show_atoms=True
 ):
     if hasattr(image, "data"):
@@ -368,9 +370,9 @@ def plot_vacancies(
         ax.scatter(
             vacancy_xy[:, 0],
             vacancy_xy[:, 1],
-            s=250,
+            s=s_V,
             facecolors="none",
-            edgecolors="red",
+            edgecolors="lime",
             linewidths=2.5,
             label="Vacancy"
         )
