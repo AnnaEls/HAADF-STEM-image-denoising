@@ -502,4 +502,4 @@ def classify_intensities(img, model, X, y, verbose=False):
     plt.legend(loc="lower center", ncol=2, frameon=True)
     plt.tight_layout()
     plt.show()
-  return result, y_true, y_pred, row_ind, valid, X_ns_pos
+  return result, matched_pos, mis_pos
