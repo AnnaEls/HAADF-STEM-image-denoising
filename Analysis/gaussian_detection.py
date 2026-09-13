@@ -1,232 +1,231 @@
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-import tifffile
-
-from pathlib import Path
-from scipy.ndimage import gaussian_filter
-from scipy.optimize import least_squares
-from skimage.feature import peak_local_max
+from skimage.feature import blob_log
+from scipy.optimize import curve_fit
+from matplotlib.patches import Ellipse
 
 
-def fit_local_gaussian(image, y_init, x_init, radius=5):
+def detect_and_plot_gaussian_blobs(
+    calibrated_img_array: np.ndarray,
+    min_sigma: float = 1,
+    max_sigma: float = 30,
+    num_sigma: int = 10,
+    threshold: float = 0.2,
+    figsize=(10, 8),
+    show: bool = True
+):
     """
-    Fit an axis-aligned 2D Gaussian around one detected peak.
+    Detect Gaussian blobs in a calibrated image using Laplacian of Gaussian (LoG)
+    and optionally plot the results.
+
+    Parameters
+    ----------
+    calibrated_img_array : np.ndarray
+        Input calibrated image (2D array).
+    min_sigma : float, optional
+        Minimum standard deviation for Gaussian kernel.
+    max_sigma : float, optional
+        Maximum standard deviation for Gaussian kernel.
+    num_sigma : int, optional
+        Number of intermediate sigma values.
+    threshold : float, optional
+        Absolute lower bound for scale-space maxima.
+    figsize : tuple, optional
+        Figure size for visualization.
+    show : bool, optional
+        Whether to display the image with detected blobs.
 
     Returns
     -------
-    x_center, y_center, amplitude, sigma_x, sigma_y, background, rmse
+    np.ndarray
+        Array of detected blobs with shape (N, 3),
+        where each blob is (row, col, sigma).
     """
-    height, width = image.shape
 
-    x_int = int(round(x_init))
-    y_int = int(round(y_init))
+    if calibrated_img_array is None:
+        raise ValueError("calibrated_img_array is None.")
 
-    x_min = max(0, x_int - radius)
-    x_max = min(width, x_int + radius + 1)
-    y_min = max(0, y_int - radius)
-    y_max = min(height, y_int + radius + 1)
+    # Detect blobs using Laplacian of Gaussian
+    gaussian_blobs = blob_log(
+        calibrated_img_array,
+        min_sigma=min_sigma,
+        max_sigma=max_sigma,
+        num_sigma=num_sigma,
+        threshold=threshold
+    )
 
-    patch = image[y_min:y_max, x_min:x_max]
+    print(f"Detected {len(gaussian_blobs)} Gaussian peaks.")
 
-    yy, xx = np.mgrid[y_min:y_max, x_min:x_max]
+    if show and len(gaussian_blobs) > 0:
+        rows = gaussian_blobs[:, 0]
+        cols = gaussian_blobs[:, 1]
+        sigmas = gaussian_blobs[:, 2]
 
-    background_0 = np.percentile(patch, 10)
-    amplitude_0 = max(patch.max() - background_0, 1e-12)
+        plt.figure(figsize=figsize)
+        plt.imshow(calibrated_img_array, cmap='gray')
 
-    weights = np.clip(patch - background_0, 0, None)
+        # Draw circles for each detected blob
+        ax = plt.gca()
+        for y, x, r in gaussian_blobs:
+            circle = plt.Circle((x, y), r, color='red', linewidth=1.5, fill=False)
+            ax.add_patch(circle)
 
-    if weights.sum() > 0:
-        x_center_0 = np.sum(weights * xx) / np.sum(weights)
-        y_center_0 = np.sum(weights * yy) / np.sum(weights)
-    else:
-        x_center_0 = x_init
-        y_center_0 = y_init
+        # Optional scatter of centers
+        plt.scatter(
+            cols,
+            rows,
+            s=sigmas * 5,
+            c='red',
+            alpha=0.6,
+            edgecolors='none',
+            label='Detected Gaussian Peaks'
+        )
 
-    initial_parameters = np.array([
-        amplitude_0,
-        x_center_0,
-        y_center_0,
-        2.0,                  # sigma_x
-        2.0,                  # sigma_y
-        background_0
-    ])
+        plt.title('Calibrated Image with Detected Gaussian Peaks (blob_log)')
+        plt.axis('off')
+        plt.legend()
+        plt.show()
 
-    def gaussian_model(parameters):
-        amplitude, x_center, y_center, sigma_x, sigma_y, background = parameters
+    return gaussian_blobs
 
-        gaussian = amplitude * np.exp(
-            -0.5 * (
-                ((xx - x_center) / sigma_x) ** 2
-                + ((yy - y_center) / sigma_y) ** 2
+
+def gaussian_2d(coords, amplitude, x0, y0, sigma_x, sigma_y, offset):
+    """
+    Returns a 2D Gaussian function for curve fitting.
+
+    Parameters:
+    -----------
+    coords : tuple
+        A tuple (x, y) where x and y are 1D arrays of coordinates.
+    amplitude : float
+        The amplitude of the Gaussian peak.
+    x0 : float
+        The x-coordinate of the center of the Gaussian.
+    y0 : float
+        The y-coordinate of the center of the Gaussian.
+    sigma_x : float
+        The standard deviation of the Gaussian in the x-direction.
+    sigma_y : float
+        The standard deviation of the Gaussian in the y-direction.
+    offset : float
+        The background offset.
+
+    Returns:
+    --------
+    np.ndarray
+        A 1D array representing the 2D Gaussian values, flattened.
+    """
+    x, y = coords
+
+    # Calculate the 2D Gaussian formula
+    exponent = -((x - x0)**2 / (2 * sigma_x**2) + (y - y0)**2 / (2 * sigma_y**2))
+    g = offset + amplitude * np.exp(exponent)
+
+    return g.ravel() # Ensure the output is a flattened 1D array
+
+def fit_2d_gaussians(
+    calibrated_img_array: np.ndarray,
+    gaussian_blobs: np.ndarray,
+    gaussian_2d,
+    roi_sigma_factor: float = 5.0,
+    sigma_lower_factor: float = 0.1,
+    sigma_upper_factor: float = 10.0,
+    figsize=(10, 8),
+    verbose: bool = True
+):
+    """
+    Fit 2D Gaussians to detected blobs and plot a single final overlay
+    of all fitted Gaussians.
+
+    Returns
+    -------
+    list of dict
+        Fitted Gaussian parameters.
+    """
+
+    fitted_gaussians = []
+    img_h, img_w = calibrated_img_array.shape
+
+    for i, (y_c, x_c, sigma) in enumerate(gaussian_blobs):
+        y_c = int(round(y_c))
+        x_c = int(round(x_c))
+
+        roi_half = int(sigma * roi_sigma_factor)
+
+        y_min = max(0, y_c - roi_half)
+        y_max = min(img_h, y_c + roi_half)
+        x_min = max(0, x_c - roi_half)
+        x_max = min(img_w, x_c + roi_half)
+
+        if (y_max - y_min <= 1) or (x_max - x_min <= 1):
+            continue
+
+        roi = calibrated_img_array[y_min:y_max, x_min:x_max]
+
+        x_roi = np.arange(x_min, x_max)
+        y_roi = np.arange(y_min, y_max)
+        X, Y = np.meshgrid(x_roi, y_roi)
+
+        p0 = [
+            np.max(roi) - np.min(roi),
+            x_c,
+            y_c,
+            sigma,
+            sigma,
+            np.min(roi)
+        ]
+
+        bounds = (
+            [0, x_min, y_min, sigma * sigma_lower_factor, sigma * sigma_lower_factor, 0],
+            [np.inf, x_max, y_max, sigma * sigma_upper_factor, sigma * sigma_upper_factor, np.max(calibrated_img_array)]
+        )
+
+        try:
+            popt, _ = curve_fit(
+                gaussian_2d,
+                (X.ravel(), Y.ravel()),
+                roi.ravel(),
+                p0=p0,
+                bounds=bounds
             )
-        )
 
-        return background + gaussian
+            fitted_gaussians.append({
+                'amplitude': popt[0],
+                'x0': popt[1],
+                'y0': popt[2],
+                'sigma_x': popt[3],
+                'sigma_y': popt[4],
+                'offset': popt[5]
+            })
 
-    def residual(parameters):
-        return (gaussian_model(parameters) - patch).ravel()
+        except (RuntimeError, ValueError):
+            continue
 
-    lower_bounds = [
-        0,
-        max(x_min - 0.5, x_init - 3),
-        max(y_min - 0.5, y_init - 3),
-        0.5,
-        0.5,
-        -np.inf
-    ]
+    # ---------------- FINAL OVERLAY PLOT ----------------
+    if verbose:
+      fig, ax = plt.subplots(figsize=figsize)
+      ax.imshow(calibrated_img_array, cmap='gray')
 
-    upper_bounds = [
-        np.inf,
-        min(x_max - 0.5, x_init + 3),
-        min(y_max - 0.5, y_init + 3),
-        6.0,
-        6.0,
-        np.inf
-    ]
+      for g in fitted_gaussians:
+          # Center
+          ax.scatter(g['x0'], g['y0'], c='red', s=5)
 
-    result = least_squares(
-        residual,
-        initial_parameters,
-        bounds=(lower_bounds, upper_bounds),
-        max_nfev=200
-    )
+          # 1σ ellipse
+          ellipse = Ellipse(
+              (g['x0'], g['y0']),
+              width=2 * g['sigma_x'],
+              height=2 * g['sigma_y'],
+              edgecolor='green',
+              facecolor='none',
+              linewidth=1
+          )
+          ax.add_patch(ellipse)
 
-    amplitude, x_center, y_center, sigma_x, sigma_y, background = result.x
+      ax.set_title(f'Final Overlay: {len(fitted_gaussians)} Fitted 2D Gaussians')
+      ax.axis('off')
+      plt.show()
 
-    rmse = np.sqrt(np.mean(residual(result.x) ** 2))
+      if verbose:
+          print(f"Successfully fitted and plotted {len(fitted_gaussians)} Gaussians.")
 
-    return {
-        "x_px": x_center,
-        "y_px": y_center,
-        "amplitude": amplitude,
-        "sigma_x_px": sigma_x,
-        "sigma_y_px": sigma_y,
-        "background": background,
-        "fit_rmse": rmse
-    }
-
-
-def locate_gaussians(
-    image,
-    smoothing_sigma=1.0,
-    min_distance=4,
-    relative_threshold=0.08,
-    fit_radius=5
-):
-    """
-    Detect local maxima and refine each center using 2D Gaussian fitting.
-    """
-    image = np.squeeze(image).astype(np.float64)
-
-    smoothed = gaussian_filter(image, sigma=smoothing_sigma)
-
-    threshold = (
-        smoothed.min()
-        + relative_threshold * (smoothed.max() - smoothed.min())
-    )
-
-    initial_peaks_yx = peak_local_max(
-        smoothed,
-        min_distance=min_distance,
-        threshold_abs=threshold,
-        exclude_border=False
-    )
-
-    fitted_peaks = []
-
-    for y_peak, x_peak in initial_peaks_yx:
-        result = fit_local_gaussian(
-            image,
-            y_init=float(y_peak),
-            x_init=float(x_peak),
-            radius=fit_radius
-        )
-
-        fitted_peaks.append(result)
-
-    coordinates = pd.DataFrame(fitted_peaks)
-    coordinates.insert(0, "id", np.arange(1, len(coordinates) + 1))
-
-    return coordinates
-
-def plot_patch_with_overlay(
-    image,
-    coordinates,
-    center_x=None,
-    center_y=None,
-    crop_size=180,
-    marker_size=28,
-    save_path=None
-):
-    """
-    Display an image/image patch with fitted Gaussian centers.
-    """
-    image = np.squeeze(image)
-
-    height, width = image.shape
-
-    if center_x is None:
-        center_x = width // 2
-
-    if center_y is None:
-        center_y = height // 2
-
-    half_size = crop_size // 2
-
-    x_min = max(0, int(center_x - half_size))
-    x_max = min(width, int(center_x + half_size))
-
-    y_min = max(0, int(center_y - half_size))
-    y_max = min(height, int(center_y + half_size))
-
-    patch = image[y_min:y_max, x_min:x_max]
-
-    inside_patch = (
-        (coordinates["x_px"] >= x_min)
-        & (coordinates["x_px"] < x_max)
-        & (coordinates["y_px"] >= y_min)
-        & (coordinates["y_px"] < y_max)
-    )
-
-    patch_coordinates = coordinates.loc[inside_patch].copy()
-
-    patch_coordinates["x_local"] = patch_coordinates["x_px"] - x_min
-    patch_coordinates["y_local"] = patch_coordinates["y_px"] - y_min
-
-    fig, ax = plt.subplots(figsize=(8, 8))
-
-    ax.imshow(
-        patch,
-        cmap="gray",
-        interpolation="nearest"
-    )
-
-    ax.scatter(
-        patch_coordinates["x_local"],
-        patch_coordinates["y_local"],
-        s=marker_size,
-        facecolors="none",
-        edgecolors="red",
-        linewidths=1.0
-    )
-
-    ax.set_title(
-        f"Gaussian centers\n"
-        f"x = {x_min}:{x_max}, y = {y_min}:{y_max}, "
-        f"N = {len(patch_coordinates)}"
-    )
-
-    ax.axis("off")
-    plt.tight_layout()
-
-    if save_path is not None:
-        plt.savefig(
-            save_path,
-            dpi=250,
-            bbox_inches="tight"
-        )
-
-    plt.show()
-
-    return patch_coordinates
+    return fitted_gaussians
