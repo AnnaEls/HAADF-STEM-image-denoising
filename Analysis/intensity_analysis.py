@@ -444,7 +444,14 @@ def classify_intensities(img, model, X, y, verbose=False):
                                                matched=valid.sum())
 
 
+  # ---- Identify misclassifications ----
+  mis_mask = (y_true != y_pred)
+  mis_idx  = np.where(mis_mask)[0]
+  # ---- Coordinates for plotting ----
+  matched_pos = X_ns_pos[row_ind[valid]]
+  mis_pos     = matched_pos[mis_mask]
 
+  
   if verbose:
     cm  = confusion_matrix(y_true, y_pred)
     print("===== METRICS ===")
@@ -458,15 +465,9 @@ def classify_intensities(img, model, X, y, verbose=False):
     print("Classification Report:")
     print(classification_report(y_true, y_pred))
 
-    # ---- Identify misclassifications ----
-    mis_mask = (y_true != y_pred)
-    mis_idx  = np.where(mis_mask)[0]
+    
 
-    print(f"Misclassified points: {len(mis_idx)}")
-
-    # ---- Coordinates for plotting ----
-    matched_pos = X_ns_pos[row_ind[valid]]
-    mis_pos     = matched_pos[mis_mask]
+    print(f"Misclassified points: {len(mis_idx)}")   
 
 
     # ---- Plot ----
