@@ -26,7 +26,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
     os.makedirs(path, exist_ok=True)
 
     for it in range(num_iter):   
-        masked_input, mask = random_patch_mask_with_dilation(
+        masked_input, mask = random_patch_mask(
             input,
             patch_size=patch_size,
             mask_ratio=mask_ratio,
@@ -116,7 +116,7 @@ def train_hybrid_model_with_mask_dilation(model, input, path, learning_rate=1e-3
     os.makedirs(path, exist_ok=True)
 
     for it in range(num_iter):   
-        masked_input, mask = random_patch_mask(
+        masked_input, mask = random_patch_mask_with_dilation(
             input,
             patch_size=patch_size,
             mask_ratio=mask_ratio,
