@@ -103,7 +103,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
  
- def train_hybrid_model_with_mask_dilation(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, mask_dilation = 3, show_image=False, seed=42):    
+def train_hybrid_model_with_mask_dilation(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, mask_dilation = 3, show_image=False, seed=42):    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
