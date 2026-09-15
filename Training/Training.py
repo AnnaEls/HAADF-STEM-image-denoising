@@ -120,6 +120,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
             input,
             patch_size=patch_size,
             mask_ratio=mask_ratio,
+            dilation = mask_dilation,
             seed=seed,         
             epoch=it            
         )
