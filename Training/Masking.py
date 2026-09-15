@@ -23,205 +23,166 @@ def random_patch_mask(x, patch_size=1, mask_ratio=0.2, *, seed=None, epoch=None)
 
     return x * mask, mask
 
-def random_validation_mask(x, val_ratio=0.05, seed=1234):
-    """
-    Fixed random validation target mask.
-
-    Returns
-    -------
-    val_mask : bool tensor [B, 1, H, W]
-        True  = reserved validation pixel
-        False = available for training
-    """
-    B, C, H, W = x.shape
-
-    gen = torch.Generator(device=x.device).manual_seed(seed)
-
-    val_mask = torch.zeros(
-        (B, 1, H, W),
-        dtype=torch.bool,
-        device=x.device
-    )
-
-    n_val = int(H * W * val_ratio)
-
-    for b in range(B):
-        idx = torch.randperm(
-            H * W,
-            generator=gen,
-            device=x.device
-        )[:n_val]
-
-        val_mask[b, 0].view(-1)[idx] = True
-
-    return val_mask
-
-def random_patch_mask_with_validation(
+def random_patch_mask(
     x,
     patch_size=1,
     mask_ratio=0.2,
+    dilation=3,
     *,
     seed=None,
-    epoch=None,
-    val_mask=None,
+    epoch=None
 ):
     """
-    Random masking for self-supervised training.
+    Random dilated blind patch masking, reproducible across runs.
 
-    Validation pixels are excluded from training targets.
+    For each randomly selected patch, the patch is replaced by a patch
+    sampled from a randomly chosen dilated neighbor.
 
     Parameters
     ----------
-    x : tensor
-        [B, C, H, W]
+    x : torch.Tensor
+        Input tensor of shape [B, C, H, W].
 
     patch_size : int
         Size of masked patch.
 
     mask_ratio : float
-        Fraction of available training pixels to mask.
+        Approximate fraction of pixels to mask.
+
+    dilation : int
+        Distance to the replacement patch.
 
     seed : int or None
-        Base random seed.
+        Random seed.
 
     epoch : int or None
-        Added to seed so training mask changes every epoch.
-
-    val_mask : bool tensor or None
-        [B, 1, H, W]
-        True = reserved validation pixel.
+        Added to seed so a different deterministic mask is generated
+        for each epoch.
 
     Returns
     -------
-    x_masked
-        Masked input.
+    masked_x : torch.Tensor
+        Input with masked regions replaced by dilated neighboring patches.
 
-    mask
-        1 = visible
-        0 = masked training target
+    mask : torch.Tensor
+        Binary mask of shape [B, 1, H, W]:
+            1 = original/visible
+            0 = masked/replaced
     """
 
     B, C, H, W = x.shape
 
-    # -----------------------------------
-    # RNG: deterministic but epoch-varying
-    # -----------------------------------
+    # ------------------------------------------------------------
+    # Local deterministic RNG
+    # ------------------------------------------------------------
     gen = None
 
     if seed is not None:
-        s = int(seed)
-
-        if epoch is not None:
-            s += int(epoch)
-
-        gen = torch.Generator(
-            device=x.device
-        ).manual_seed(s)
+        s = int(seed) if epoch is None else int(seed) + int(epoch)
+        gen = torch.Generator(device=x.device).manual_seed(s)
 
     # 1 = visible
     # 0 = masked
     mask = torch.ones(
         (B, 1, H, W),
-        device=x.device
+        device=x.device,
+        dtype=x.dtype
     )
 
-    # -----------------------------------
-    # Pixels that may be training targets
-    # -----------------------------------
-    if val_mask is None:
-        allowed = torch.ones(
-            (B, 1, H, W),
-            dtype=torch.bool,
+    masked_x = x.clone()
+
+    num_patches = int(
+        H * W * mask_ratio /
+        (patch_size * patch_size)
+    )
+
+    # ------------------------------------------------------------
+    # Dilated neighbors
+    # ------------------------------------------------------------
+    offsets = [
+        (-dilation, -dilation),
+        (-dilation, 0),
+        (-dilation, dilation),
+
+        (0, -dilation),
+        (0, dilation),
+
+        (dilation, -dilation),
+        (dilation, 0),
+        (dilation, dilation),
+    ]
+
+    # ------------------------------------------------------------
+    # Mask patches
+    # ------------------------------------------------------------
+    for _ in range(num_patches):
+
+        top = torch.randint(
+            0,
+            H - patch_size + 1,
+            (1,),
+            generator=gen,
             device=x.device
-        )
-    else:
-        allowed = ~val_mask.bool()
+        ).item()
 
-    # -----------------------------------
-    # Pixel masking
-    # -----------------------------------
-    if patch_size == 1:
+        left = torch.randint(
+            0,
+            W - patch_size + 1,
+            (1,),
+            generator=gen,
+            device=x.device
+        ).item()
 
-        for b in range(B):
+        # randomly choose one dilated neighbor
+        idx = torch.randint(
+            0,
+            len(offsets),
+            (1,),
+            generator=gen,
+            device=x.device
+        ).item()
 
-            allowed_idx = torch.where(
-                allowed[b, 0].flatten()
-            )[0]
+        dy, dx = offsets[idx]
 
-            n_mask = int(
-                len(allowed_idx) * mask_ratio
-            )
+        # --------------------------------------------------------
+        # Replacement coordinates
+        # --------------------------------------------------------
+        src_top = top + dy
+        src_left = left + dx
 
-            perm = torch.randperm(
-                len(allowed_idx),
-                generator=gen,
-                device=x.device
-            )
-
-            selected = allowed_idx[
-                perm[:n_mask]
-            ]
-
-            mask[b, 0].view(-1)[selected] = 0
-
-    # -----------------------------------
-    # Patch masking
-    # -----------------------------------
-    else:
-
-        num_patches = int(
-            H * W * mask_ratio /
-            (patch_size * patch_size)
+        # Keep source patch inside the image
+        src_top = max(
+            0,
+            min(src_top, H - patch_size)
         )
 
-        for b in range(B):
+        src_left = max(
+            0,
+            min(src_left, W - patch_size)
+        )
 
-            count = 0
-            attempts = 0
+        # --------------------------------------------------------
+        # Replace selected patch
+        # --------------------------------------------------------
+        masked_x[
+            :,
+            :,
+            top:top + patch_size,
+            left:left + patch_size
+        ] = x[
+            :,
+            :,
+            src_top:src_top + patch_size,
+            src_left:src_left + patch_size
+        ]
 
-            max_attempts = num_patches * 100
+        # mark as masked
+        mask[
+            :,
+            :,
+            top:top + patch_size,
+            left:left + patch_size
+        ] = 0
 
-            while (
-                count < num_patches
-                and attempts < max_attempts
-            ):
+    return masked_x, mask
 
-                top = torch.randint(
-                    0,
-                    H - patch_size + 1,
-                    (1,),
-                    generator=gen,
-                    device=x.device
-                ).item()
-
-                left = torch.randint(
-                    0,
-                    W - patch_size + 1,
-                    (1,),
-                    generator=gen,
-                    device=x.device
-                ).item()
-
-                region_allowed = allowed[
-                    b,
-                    0,
-                    top:top + patch_size,
-                    left:left + patch_size
-                ]
-
-                # Do not allow training patches
-                # to contain validation pixels
-                if region_allowed.all():
-
-                    mask[
-                        b,
-                        0,
-                        top:top + patch_size,
-                        left:left + patch_size
-                    ] = 0
-
-                    count += 1
-
-                attempts += 1
-
-    return x * mask, mask
