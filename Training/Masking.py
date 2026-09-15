@@ -23,7 +23,7 @@ def random_patch_mask(x, patch_size=1, mask_ratio=0.2, *, seed=None, epoch=None)
 
     return x * mask, mask
 
-def random_patch_mask(
+def random_patch_mask_with_dilation(
     x,
     patch_size=1,
     mask_ratio=0.2,
