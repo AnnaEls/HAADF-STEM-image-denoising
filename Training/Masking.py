@@ -27,7 +27,7 @@ def random_patch_mask(x, patch_size=1, mask_ratio=0.2, *, seed=None, epoch=None)
 import torch
 
 
-def random_patch_mask_with_dilation(
+def random_patch_mask_with_dilation_old(
     x,
     patch_size=7,
     mask_ratio=0.2,
@@ -198,7 +198,7 @@ def random_patch_mask_with_dilation(
     return masked_x, mask
 
 
-def random_patch_mask_with_dilation_old(
+def random_patch_mask_with_dilation(
     x,
     patch_size=1,
     mask_ratio=0.2,
