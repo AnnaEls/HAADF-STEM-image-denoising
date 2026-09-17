@@ -210,9 +210,9 @@ class ConvBlock(nn.Module):
         super().__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, 3, padding=1),
-            nn.GELU(),
+            nn.ReLU(),
             nn.Conv2d(out_ch, out_ch, 3, padding=1),
-            nn.GELU()
+            nn.ReLU()
         )
     def forward(self, x):
         return self.conv(x)
@@ -283,7 +283,7 @@ class DecoderBlock(nn.Module):
 #===============================
 #Model
 #===============================
-class DFNO_DD(nn.Module):
+class hybrid_model_with_dilations(nn.Module):
     def __init__(self,in_channels=1,base_ch=32, depth=3, mlp_ratio=6, hidden_dim_afno=64, add_dilation = (3,3)):
         super().__init__()
         # Encoder
