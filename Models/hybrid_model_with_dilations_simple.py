@@ -142,28 +142,68 @@ class ConvBlock(nn.Module):
     def forward(self, x):
         return self.conv(x)
         
-class DilatedConvBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, dilation):
-        super().__init__()
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-        # keep spatial size unchanged
+class CenterMaskedConv2d(nn.Conv2d):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        dilation=1,
+        bias=True
+    ):
         padding = dilation
 
+        super().__init__(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            padding=padding,
+            dilation=dilation,
+            bias=bias
+        )
+
+        mask = torch.ones_like(self.weight)
+
+        cy = kernel_size // 2
+        cx = kernel_size // 2
+
+        # exclude center pixel
+        mask[:, :, cy, cx] = 0
+
+        self.register_buffer("mask", mask)
+
+    def forward(self, x):
+        return F.conv2d(
+            x,
+            self.weight * self.mask,
+            self.bias,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+            groups=self.groups
+        )
+
+class DilatedConvBlock(nn.Module):
+    def __init__(self, in_ch, out_ch, dilation=1):
+        super().__init__()
+
         self.conv = nn.Sequential(
-            nn.Conv2d(
+            CenterMaskedConv2d(
                 in_ch,
                 out_ch,
                 kernel_size=3,
-                padding=padding,
                 dilation=dilation
             ),
             nn.ReLU(),
 
-            nn.Conv2d(
+            CenterMaskedConv2d(
                 out_ch,
                 out_ch,
                 kernel_size=3,
-                padding=padding,
                 dilation=dilation
             ),
             nn.ReLU()
@@ -171,7 +211,6 @@ class DilatedConvBlock(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
-
 
 # Encoder block
 class DilatedEncoderBlock(nn.Module):
