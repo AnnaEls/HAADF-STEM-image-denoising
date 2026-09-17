@@ -217,10 +217,21 @@ class DilatedEncoderBlock(nn.Module):
     def __init__(self, in_ch, out_ch, dilation):
         super().__init__()
 
-        self.conv = DilatedConvBlock(
-            in_ch,
-            out_ch,
-            dilation=dilation
+        self.conv = nn.Sequential(
+            CenterMaskedConv2d(
+                in_ch,
+                out_ch,
+                kernel_size=3,
+                dilation=dilation,
+                bias=False
+            ),
+            nn.ReLU(),
+
+            nn.Conv2d(out_ch, out_ch, 1, bias=False),
+            nn.ReLU(),
+
+            nn.Conv2d(out_ch, out_ch, 1, bias=False),
+            nn.ReLU()
         )
 
         self.pool = nn.MaxPool2d(2)
