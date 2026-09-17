@@ -146,14 +146,19 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
 class CenterMaskedConv2d(nn.Conv2d):
     def __init__(
         self,
         in_channels,
         out_channels,
-        kernel_size=3,
-        dilation=1,
-        bias=True
+        kernel_size,
+        dilation,
+        bias=False
     ):
         padding = dilation
 
@@ -171,7 +176,7 @@ class CenterMaskedConv2d(nn.Conv2d):
         cy = kernel_size // 2
         cx = kernel_size // 2
 
-        # exclude center pixel
+        # Exclude center coefficient
         mask[:, :, cy, cx] = 0
 
         self.register_buffer("mask", mask)
@@ -187,33 +192,8 @@ class CenterMaskedConv2d(nn.Conv2d):
             groups=self.groups
         )
 
-class DilatedConvBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, dilation=1):
-        super().__init__()
 
-        self.conv = nn.Sequential(
-            CenterMaskedConv2d(
-                in_ch,
-                out_ch,
-                kernel_size=3,
-                dilation=dilation
-            ),
-            nn.ReLU(),
-
-            CenterMaskedConv2d(
-                out_ch,
-                out_ch,
-                kernel_size=3,
-                dilation=dilation
-            ),
-            nn.ReLU()
-        )
-
-    def forward(self, x):
-        return self.conv(x)
-
-# Encoder block
-class DilatedEncoderBlock(nn.Module):
+class DilatedBlindConvBlock(nn.Module):
     def __init__(self, in_ch, out_ch, dilation):
         super().__init__()
 
@@ -225,13 +205,40 @@ class DilatedEncoderBlock(nn.Module):
                 dilation=dilation,
                 bias=False
             ),
-            nn.ReLU(),
 
-            nn.Conv2d(out_ch, out_ch, 1, bias=False),
-            nn.ReLU(),
+            nn.ReLU(inplace=True),
 
-            nn.Conv2d(out_ch, out_ch, 1, bias=False),
-            nn.ReLU()
+            nn.Conv2d(
+                out_ch,
+                out_ch,
+                kernel_size=1,
+                bias=False
+            ),
+
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(
+                out_ch,
+                out_ch,
+                kernel_size=1,
+                bias=False
+            ),
+
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+class DilatedEncoderBlock(nn.Module):
+    def __init__(self, in_ch, out_ch, dilation):
+        super().__init__()
+
+        self.conv = DilatedBlindConvBlock(
+            in_ch,
+            out_ch,
+            dilation=dilation
         )
 
         self.pool = nn.MaxPool2d(2)
