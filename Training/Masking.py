@@ -27,182 +27,11 @@ def random_patch_mask(x, patch_size=1, mask_ratio=0.2, *, seed=None, epoch=None)
 import torch
 
 
-def random_patch_mask_with_dilation_old(
-    x,
-    patch_size=7,
-    mask_ratio=0.2,
-    dilation=3,
-    *,
-    seed=None,
-    epoch=None
-):
-    """
-    Random dilated blind-spot masking.
-
-    Parameters
-    ----------
-    x : torch.Tensor
-        Input tensor [B, C, H, W].
-
-    patch_size : int
-        Number of masked points along each dimension.
-        Example: patch_size=7 -> 7 x 7 = 49 masked points
-        per randomly selected dilated patch.
-
-    mask_ratio : float
-        Approximate fraction of pixels to mask.
-
-    dilation : int
-        Spacing between masked points.
-
-        dilation=1:
-            X X X X X X X
-
-        dilation=2:
-            X . X . X . X . X . X . X
-
-        dilation=3:
-            X . . X . . X . . X . . X . . X . . X
-
-    seed : int or None
-        Random seed.
-
-    epoch : int or None
-        Added to the seed to generate a different deterministic
-        mask at each epoch.
-
-    Returns
-    -------
-    masked_x : torch.Tensor
-        Input with selected pixels set to zero.
-
-    mask : torch.Tensor
-        Binary mask [B, 1, H, W]:
-            1 = visible/original pixel
-            0 = masked pixel
-    """
-
-    B, C, H, W = x.shape
-
-    # ----------------------------------------------------------
-    # Random generator
-    # ----------------------------------------------------------
-    gen = None
-
-    if seed is not None:
-        s = int(seed) if epoch is None else int(seed) + int(epoch)
-
-        gen = torch.Generator(device=x.device)
-        gen.manual_seed(s)
-
-    # ----------------------------------------------------------
-    # Mask
-    # ----------------------------------------------------------
-    mask = torch.ones(
-        (B, 1, H, W),
-        dtype=x.dtype,
-        device=x.device
-    )
-
-    # Effective spatial extent:
-    #
-    # patch_size = 7, dilation = 3
-    #
-    # X . . X . . X . . X . . X . . X . . X
-    #
-    # extent = 19 pixels
-    # ----------------------------------------------------------
-    effective_size = (
-        1 + (patch_size - 1) * dilation
-    )
-
-    if effective_size > H or effective_size > W:
-        raise ValueError(
-            f"Effective dilated patch size is "
-            f"{effective_size} x {effective_size}, "
-            f"but image size is {H} x {W}."
-        )
-
-    # Number of actual masked pixels per patch
-    n_masked_per_patch = patch_size * patch_size
-
-    # Approximate number of random patch positions
-    num_patches = max(
-        1,
-        int(
-            H * W * mask_ratio /
-            n_masked_per_patch
-        )
-    )
-
-    # ----------------------------------------------------------
-    # Generate random dilated patches
-    # ----------------------------------------------------------
-    for _ in range(num_patches):
-
-        # Random top-left position of the whole effective region
-        top = torch.randint(
-            0,
-            H - effective_size + 1,
-            (1,),
-            generator=gen,
-            device=x.device
-        ).item()
-
-        left = torch.randint(
-            0,
-            W - effective_size + 1,
-            (1,),
-            generator=gen,
-            device=x.device
-        ).item()
-
-        # ------------------------------------------------------
-        # Coordinates of masked pixels
-        #
-        # For patch_size=7, dilation=3:
-        #
-        # top + [0, 3, 6, 9, 12, 15, 18]
-        # ------------------------------------------------------
-        ys = (
-            top
-            + torch.arange(
-                patch_size,
-                device=x.device
-            ) * dilation
-        )
-
-        xs = (
-            left
-            + torch.arange(
-                patch_size,
-                device=x.device
-            ) * dilation
-        )
-
-        yy, xx = torch.meshgrid(
-            ys,
-            xs,
-            indexing="ij"
-        )
-
-        # Set these pixels to masked
-        mask[:, :, yy, xx] = 0
-
-    # ----------------------------------------------------------
-    # Genuine blind spot:
-    # masked pixels are set to ZERO
-    # ----------------------------------------------------------
-    masked_x = x * mask
-
-    return masked_x, mask
-
-
-def random_patch_mask_with_dilation(
+def random_patch_mask_with_offset(
     x,
     patch_size=1,
     mask_ratio=0.2,
-    dilation=3,
+    offset=3,
     *,
     seed=None,
     epoch=None
@@ -224,7 +53,7 @@ def random_patch_mask_with_dilation(
     mask_ratio : float
         Approximate fraction of pixels to mask.
 
-    dilation : int
+    offset : int
         Distance to the replacement patch.
 
     seed : int or None
@@ -275,16 +104,16 @@ def random_patch_mask_with_dilation(
     # Dilated neighbors
     # ------------------------------------------------------------
     offsets = [
-        (-dilation, -dilation),
-        (-dilation, 0),
-        (-dilation, dilation),
+        (-offset, -offset),
+        (-offset, 0),
+        (-offset, offset),
 
-        (0, -dilation),
-        (0, dilation),
+        (0, -offset),
+        (0, offset),
 
-        (dilation, -dilation),
-        (dilation, 0),
-        (dilation, dilation),
+        (offset, -offset),
+        (offset, 0),
+        (offset, offset),
     ]
 
     # ------------------------------------------------------------
