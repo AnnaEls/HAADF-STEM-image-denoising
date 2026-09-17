@@ -129,7 +129,7 @@ class AFNOTransformerBlock(nn.Module):
 #Encoder and decoder
 #===============================
 # Convolutional block
-class ConvBlock(nn.Module):
+class DilatedConvBlock(nn.Module):
     def __init__(self, in_ch, out_ch, dilation):
         super().__init__()
 
@@ -161,7 +161,7 @@ class ConvBlock(nn.Module):
 
 
 # Encoder block
-class EncoderBlock(nn.Module):
+class FirstEncoderBlock(nn.Module):
     def __init__(self, in_ch, out_ch, dilation):
         super().__init__()
 
