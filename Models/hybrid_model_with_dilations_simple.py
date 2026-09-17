@@ -129,6 +129,19 @@ class AFNOTransformerBlock(nn.Module):
 #Encoder and decoder
 #===============================
 # Convolutional block
+#Convolutional block
+class ConvBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1),
+            nn.ReLU()
+        )
+    def forward(self, x):
+        return self.conv(x)
+        
 class DilatedConvBlock(nn.Module):
     def __init__(self, in_ch, out_ch, dilation):
         super().__init__()
@@ -161,11 +174,11 @@ class DilatedConvBlock(nn.Module):
 
 
 # Encoder block
-class FirstEncoderBlock(nn.Module):
+class DilatedEncoderBlock(nn.Module):
     def __init__(self, in_ch, out_ch, dilation):
         super().__init__()
 
-        self.conv = ConvBlock(
+        self.conv = DilatedConvBlock(
             in_ch,
             out_ch,
             dilation=dilation
@@ -205,7 +218,7 @@ class hybrid_model_with_dilations_simple(nn.Module):
     def __init__(self,in_channels=1,base_ch=32, depth=3, mlp_ratio=6, hidden_dim_afno=64, dilation = 3):
         super().__init__()
         # Encoder
-        self.encoder = EncoderBlock(in_channels, base_ch, dilation = dilation)
+        self.encoder = DilatedEncoderBlock(in_channels, base_ch, dilation = dilation)
 
         #Bottleneck
         self.bottleneck_afno =nn.ModuleList([
