@@ -31,7 +31,7 @@ def random_patch_mask_with_offset(
     patch_size=1,
     mask_ratio=0.2,
     offset_min=1,
-    offset_max=5,
+    offset_max=21,
     *,
     seed=None,
     epoch=None
