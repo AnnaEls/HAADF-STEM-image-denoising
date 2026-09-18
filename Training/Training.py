@@ -120,7 +120,7 @@ def train_hybrid_model_with_mask_offset(model, input, path, learning_rate=1e-3, 
             input,
             patch_size=patch_size,
             mask_ratio=mask_ratio,
-            offset = mask_offset,
+            max_offset = mask_offset,
             seed=seed,         
             epoch=it            
         )
