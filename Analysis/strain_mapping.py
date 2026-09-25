@@ -19,6 +19,457 @@ from scipy.interpolate import griddata
 
 import tifffile
 
+import numpy as np
+from scipy.spatial import cKDTree
+
+
+def estimate_reference_lattice_vectors(
+    points_xy,
+    x_min=None,
+    x_max=None,
+    y_min=None,
+    y_max=None,
+    k=7,
+    distance_tolerance=0.20,
+    angle_tolerance_deg=20,
+    outlier_percentile=90
+):
+    """
+    Estimate two primitive nearest-neighbor lattice vectors from an
+    approximately unstrained triangular-lattice region.
+
+    The function:
+        1. Selects a reference ROI.
+        2. Finds nearest-neighbor displacement vectors.
+        3. Groups them into six angular directions.
+        4. Computes a robust subpixel mean for each direction.
+        5. Averages opposite directions to improve precision.
+        6. Returns two primitive vectors with positive x.
+
+    Parameters
+    ----------
+    points_xy : ndarray, shape (N, 2)
+        Atomic-column coordinates in [x, y] order.
+
+    x_min, x_max, y_min, y_max : float or None
+        ROI limits defining the nominally unstrained region.
+
+    k : int
+        Number of nearest points queried from the KD-tree.
+        k=7 corresponds to self + 6 nearest neighbors.
+
+    distance_tolerance : float
+        Allowed relative deviation from the initial nearest-neighbor
+        distance.
+
+    angle_tolerance_deg : float
+        Angular half-width for assigning displacement vectors to one
+        of the six triangular-lattice directions.
+
+    outlier_percentile : float
+        Residual percentile used to reject outliers from each angular
+        cluster before averaging.
+
+    Returns
+    -------
+    v1 : ndarray, shape (2,)
+        Primitive vector with positive x and negative y.
+
+    v2 : ndarray, shape (2,)
+        Primitive vector with positive x and positive y.
+
+    six_vectors : ndarray, shape (6, 2)
+        Symmetrized first-shell nearest-neighbor vectors.
+
+    a0 : float
+        Estimated nearest-neighbor spacing.
+
+    points_ref : ndarray
+        Coordinates used from the selected reference ROI.
+    """
+
+    points_xy = np.asarray(points_xy, dtype=float)
+
+    if points_xy.ndim != 2 or points_xy.shape[1] != 2:
+        raise ValueError("points_xy must have shape (N, 2).")
+
+    # ============================================================
+    # 1. Select reference ROI
+    # ============================================================
+
+    mask = np.ones(len(points_xy), dtype=bool)
+
+    if x_min is not None:
+        mask &= points_xy[:, 0] >= x_min
+
+    if x_max is not None:
+        mask &= points_xy[:, 0] <= x_max
+
+    if y_min is not None:
+        mask &= points_xy[:, 1] >= y_min
+
+    if y_max is not None:
+        mask &= points_xy[:, 1] <= y_max
+
+    points_ref = points_xy[mask]
+
+    if len(points_ref) < 10:
+        raise ValueError(
+            "Too few points in the selected reference region."
+        )
+
+    # ============================================================
+    # 2. KD-tree nearest neighbors
+    # ============================================================
+
+    tree = cKDTree(points_ref)
+
+    distances, indices = tree.query(
+        points_ref,
+        k=min(k, len(points_ref))
+    )
+
+    # Remove self-neighbor
+    distances = distances[:, 1:]
+    indices = indices[:, 1:]
+
+    # ============================================================
+    # 3. Initial nearest-neighbor spacing
+    # ============================================================
+
+    a0_initial = np.median(distances[:, 0])
+
+    dmin = (
+        (1.0 - distance_tolerance)
+        * a0_initial
+    )
+
+    dmax = (
+        (1.0 + distance_tolerance)
+        * a0_initial
+    )
+
+    # ============================================================
+    # 4. Collect first-shell displacement vectors
+    # ============================================================
+
+    vectors = []
+
+    for i in range(len(points_ref)):
+
+        for d, j in zip(
+            distances[i],
+            indices[i]
+        ):
+
+            if dmin <= d <= dmax:
+
+                vectors.append(
+                    points_ref[j]
+                    - points_ref[i]
+                )
+
+    vectors = np.asarray(vectors)
+
+    if len(vectors) < 6:
+        raise ValueError(
+            "Could not identify enough nearest-neighbor vectors."
+        )
+
+    # ============================================================
+    # 5. Angular distribution
+    # ============================================================
+
+    angles = np.mod(
+        np.arctan2(
+            vectors[:, 1],
+            vectors[:, 0]
+        ),
+        2 * np.pi
+    )
+
+    # ============================================================
+    # 6. Find best sixfold orientation
+    # ============================================================
+
+    offsets = np.linspace(
+        0,
+        np.pi / 3,
+        1440,
+        endpoint=False
+    )
+
+    best_offset = None
+    best_score = np.inf
+
+    for offset in offsets:
+
+        targets = (
+            offset
+            + np.arange(6) * np.pi / 3
+        )
+
+        score = 0.0
+
+        for target in targets:
+
+            angular_difference = np.angle(
+                np.exp(
+                    1j * (
+                        angles
+                        - target
+                    )
+                )
+            )
+
+            score += np.min(
+                np.abs(
+                    angular_difference
+                )
+            )
+
+        if score < best_score:
+
+            best_score = score
+            best_offset = offset
+
+    # ============================================================
+    # 7. Robust subpixel mean for each angular cluster
+    # ============================================================
+
+    angle_tolerance = np.deg2rad(
+        angle_tolerance_deg
+    )
+
+    raw_six_vectors = []
+
+    for n in range(6):
+
+        target_angle = (
+            best_offset
+            + n * np.pi / 3
+        )
+
+        angular_difference = np.angle(
+            np.exp(
+                1j * (
+                    angles
+                    - target_angle
+                )
+            )
+        )
+
+        cluster_mask = (
+            np.abs(
+                angular_difference
+            )
+            <= angle_tolerance
+        )
+
+        cluster = vectors[
+            cluster_mask
+        ]
+
+        if len(cluster) == 0:
+            raise ValueError(
+                f"No vectors found for direction {n}."
+            )
+
+        # --------------------------------------------------------
+        # First estimate
+        # --------------------------------------------------------
+
+        mu = np.mean(
+            cluster,
+            axis=0
+        )
+
+        # --------------------------------------------------------
+        # Reject vectors far from cluster center
+        # --------------------------------------------------------
+
+        residual = np.linalg.norm(
+            cluster - mu,
+            axis=1
+        )
+
+        threshold = np.percentile(
+            residual,
+            outlier_percentile
+        )
+
+        cluster_clean = cluster[
+            residual <= threshold
+        ]
+
+        # --------------------------------------------------------
+        # Subpixel average
+        # --------------------------------------------------------
+
+        cluster_vector = np.mean(
+            cluster_clean,
+            axis=0
+        )
+
+        raw_six_vectors.append(
+            cluster_vector
+        )
+
+    raw_six_vectors = np.asarray(
+        raw_six_vectors
+    )
+
+    # ============================================================
+    # 8. Sort vectors by angle
+    # ============================================================
+
+    raw_angles = np.mod(
+        np.arctan2(
+            raw_six_vectors[:, 1],
+            raw_six_vectors[:, 0]
+        ),
+        2 * np.pi
+    )
+
+    order = np.argsort(
+        raw_angles
+    )
+
+    raw_six_vectors = (
+        raw_six_vectors[order]
+    )
+
+    # ============================================================
+    # 9. Symmetrize opposite directions
+    #
+    # After sorting:
+    #
+    # vector 0 <-> vector 3
+    # vector 1 <-> vector 4
+    # vector 2 <-> vector 5
+    #
+    # For an ideal lattice:
+    #
+    #     v_i = -v_{i+3}
+    #
+    # Therefore:
+    #
+    #     v = 0.5 * (v_i - v_{i+3})
+    #
+    # ============================================================
+
+    sym_vectors = []
+
+    for i in range(3):
+
+        positive = raw_six_vectors[i]
+        opposite = raw_six_vectors[i + 3]
+
+        v = 0.5 * (
+            positive
+            - opposite
+        )
+
+        sym_vectors.append(v)
+
+    sym_vectors = np.asarray(
+        sym_vectors
+    )
+
+    # Create corresponding negatives
+    six_vectors = np.vstack([
+        sym_vectors,
+        -sym_vectors
+    ])
+
+    # ============================================================
+    # 10. Sort final six vectors by angle
+    # ============================================================
+
+    final_angles = np.mod(
+        np.arctan2(
+            six_vectors[:, 1],
+            six_vectors[:, 0]
+        ),
+        2 * np.pi
+    )
+
+    order = np.argsort(
+        final_angles
+    )
+
+    six_vectors = (
+        six_vectors[order]
+    )
+
+    # ============================================================
+    # 11. Final lattice spacing
+    # ============================================================
+
+    a0 = np.mean(
+        np.linalg.norm(
+            sym_vectors,
+            axis=1
+        )
+    )
+
+    # ============================================================
+    # 12. Select primitive vectors
+    #
+    # Image coordinates:
+    # y < 0 = upward
+    # y > 0 = downward
+    # ============================================================
+
+    right_vectors = six_vectors[
+        six_vectors[:, 0] > 0
+    ]
+
+    if len(right_vectors) < 2:
+
+        raise ValueError(
+            "Could not identify two right-pointing lattice vectors."
+        )
+
+    # Positive x, negative y
+    candidates_upper = right_vectors[
+        right_vectors[:, 1] < 0
+    ]
+
+    # Positive x, positive y
+    candidates_lower = right_vectors[
+        right_vectors[:, 1] > 0
+    ]
+
+    if (
+        len(candidates_upper) == 0
+        or len(candidates_lower) == 0
+    ):
+        raise ValueError(
+            "Could not identify upper and lower "
+            "right-pointing primitive vectors."
+        )
+
+    v1 = candidates_upper[
+        np.argmax(
+            candidates_upper[:, 0]
+        )
+    ]
+
+    v2 = candidates_lower[
+        np.argmax(
+            candidates_lower[:, 0]
+        )
+    ]
+
+    return (
+        v1,
+        v2,
+        six_vectors,
+        a0,
+        points_ref
+    )
+
 
 # ============================================================
 # Local atomic strain estimation
