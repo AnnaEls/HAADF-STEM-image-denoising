@@ -19,9 +19,6 @@ from scipy.interpolate import griddata
 
 import tifffile
 
-import numpy as np
-from scipy.spatial import cKDTree
-
 
 def estimate_reference_lattice_vectors(
     points_xy,
