@@ -104,7 +104,7 @@ def cluster_gaussians_by_amplitude_and_plot(
             color=cmap(cluster_id),
             edgecolors='black',
             linewidth=1,
-            label=clusters_name[cluster_id]
+            label=cluster_id
         )
 
     plt.title('Gaussian Centers Clustered by Amplitude')
