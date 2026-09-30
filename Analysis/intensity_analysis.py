@@ -23,7 +23,8 @@ def cluster_gaussians_by_amplitude_and_plot(
     n_clusters: int = 3,
     random_state: int = 42,
     figsize=(12, 10),
-    verbose: bool = True
+    verbose: bool = True,
+    clusters_name = ["Ti-C", "Ti", "Ti-O"]
 ):
     """
     Cluster fitted Gaussians by amplitude using K-Means and plot the
@@ -103,7 +104,7 @@ def cluster_gaussians_by_amplitude_and_plot(
             color=cmap(cluster_id),
             edgecolors='black',
             linewidth=1,
-            label=f'Cluster {cluster_id}'
+            label=clusters_name[cluster_id]
         )
 
     plt.title('Gaussian Centers Clustered by Amplitude')
