@@ -398,7 +398,8 @@ def match_reference_and_noisy(
         FN if no noisy detection was matched to it
     """
 
-    ref_xy = sublattice_to_xy(reference_sublattice)
+    if not isinstance(reference_sublattice, np.ndarray):
+      ref_xy = sublattice_to_xy(reference_sublattice)
     noisy_xy = sublattice_to_xy(noisy_sublattice)
 
     # --------------------------------------------------
