@@ -564,3 +564,287 @@ def classify_false_positives_by_lattice_symmetry(
             good_fp.append(info)
 
     return good_fp, bad_fp
+
+import numpy as np
+from scipy.spatial import cKDTree
+
+from Analysis.gaussian_detection_atomap import (
+    sublattice_to_xy,
+    generate_lattice_positions,
+    classify_false_positives_by_lattice_symmetry,
+    estimate_hexagonal_lattice_vectors_from_points,
+)
+
+
+def compare_sublattices_with_lattice_fp_classification(
+    reference_sublattice,
+    noisy_sublattice,
+    image_shape=None,
+    match_tolerance=3.0,
+    lattice_tolerance=3.0,
+    neighbor_radius=25,
+):
+    """
+    Compare reference and noisy Gaussian sublattices using cKDTree matching.
+
+    Matching is one-to-one:
+        - all candidate pairs within match_tolerance are found using cKDTree
+        - candidate pairs are sorted by distance
+        - closest non-conflicting pairs are accepted
+
+    False positives are classified using symmetry-derived lattice positions,
+    not only the original reference points.
+    """
+
+    ref_xy = sublattice_to_xy(reference_sublattice)
+    noisy_xy = sublattice_to_xy(noisy_sublattice)
+
+    ref_xy = np.asarray(ref_xy, dtype=float)
+    noisy_xy = np.asarray(noisy_xy, dtype=float)
+
+    matches = []
+
+    false_negatives = set(range(len(ref_xy)))
+    false_positives = set(range(len(noisy_xy)))
+
+    # ------------------------------------------------------------
+    # cKDTree matching
+    # ------------------------------------------------------------
+
+    if len(ref_xy) > 0 and len(noisy_xy) > 0:
+
+        noisy_tree = cKDTree(noisy_xy)
+
+        candidate_pairs = []
+
+        # Find all noisy atoms within match_tolerance of each reference atom
+        nearby_indices = noisy_tree.query_ball_point(
+            ref_xy,
+            r=match_tolerance,
+        )
+
+        for ref_idx, noisy_candidates in enumerate(nearby_indices):
+
+            for noisy_idx in noisy_candidates:
+
+                d = np.linalg.norm(
+                    noisy_xy[noisy_idx] - ref_xy[ref_idx]
+                )
+
+                candidate_pairs.append(
+                    (float(d), int(ref_idx), int(noisy_idx))
+                )
+
+        # Closest candidate pairs first
+        candidate_pairs.sort(key=lambda x: x[0])
+
+        matched_ref = set()
+        matched_noisy = set()
+
+        for d, ref_idx, noisy_idx in candidate_pairs:
+
+            # Enforce one-to-one matching
+            if ref_idx in matched_ref:
+                continue
+
+            if noisy_idx in matched_noisy:
+                continue
+
+            ref_atom = reference_sublattice.atom_list[ref_idx]
+            noisy_atom = noisy_sublattice.atom_list[noisy_idx]
+
+            matches.append({
+                "reference_index": int(ref_idx),
+                "noisy_index": int(noisy_idx),
+
+                "reference_atom": ref_atom,
+                "noisy_atom": noisy_atom,
+
+                "reference_xy": ref_xy[ref_idx],
+                "noisy_xy": noisy_xy[noisy_idx],
+
+                "distance": float(d),
+
+                "dx": float(
+                    noisy_xy[noisy_idx, 0]
+                    - ref_xy[ref_idx, 0]
+                ),
+
+                "dy": float(
+                    noisy_xy[noisy_idx, 1]
+                    - ref_xy[ref_idx, 1]
+                ),
+
+                "reference_sx": float(ref_atom.sigma_x),
+                "reference_sy": float(ref_atom.sigma_y),
+
+                "noisy_sx": float(noisy_atom.sigma_x),
+                "noisy_sy": float(noisy_atom.sigma_y),
+
+                "dsx": float(
+                    noisy_atom.sigma_x
+                    - ref_atom.sigma_x
+                ),
+
+                "dsy": float(
+                    noisy_atom.sigma_y
+                    - ref_atom.sigma_y
+                ),
+
+                "sigma_error": float(
+                    np.sqrt(
+                        (noisy_atom.sigma_x - ref_atom.sigma_x) ** 2
+                        +
+                        (noisy_atom.sigma_y - ref_atom.sigma_y) ** 2
+                    )
+                ),
+
+                "amplitude error": float(
+                    noisy_atom.amplitude_gaussian
+                    - ref_atom.amplitude_gaussian
+                ) / float(
+                    ref_atom.amplitude_gaussian
+                ),
+            })
+
+            matched_ref.add(ref_idx)
+            matched_noisy.add(noisy_idx)
+
+            false_negatives.discard(ref_idx)
+            false_positives.discard(noisy_idx)
+
+    # ------------------------------------------------------------
+    # Estimate lattice symmetry from reference positions
+    # ------------------------------------------------------------
+
+    a, b = estimate_hexagonal_lattice_vectors_from_points(
+        ref_xy,
+        neighbor_radius=neighbor_radius,
+    )
+
+    # ------------------------------------------------------------
+    # Generate ideal lattice positions
+    # ------------------------------------------------------------
+
+    lattice_xy = generate_lattice_positions(
+        ref_xy,
+        a,
+        b,
+        image_shape=image_shape,
+        margin=20,
+    )
+
+    # ------------------------------------------------------------
+    # Classify remaining false positives
+    # ------------------------------------------------------------
+
+    good_fp, bad_fp = classify_false_positives_by_lattice_symmetry(
+        noisy_xy=noisy_xy,
+        false_positive_indices=false_positives,
+        lattice_xy=lattice_xy,
+        lattice_tolerance=lattice_tolerance,
+    )
+
+    # ------------------------------------------------------------
+    # Metrics
+    # ------------------------------------------------------------
+
+    errors = np.array(
+        [m["distance"] for m in matches],
+        dtype=float,
+    )
+
+    sigma_errors = np.array(
+        [m["sigma_error"] for m in matches],
+        dtype=float,
+    )
+
+    amplitude_errors = np.array(
+        [m["amplitude error"] for m in matches],
+        dtype=float,
+    )
+
+    tp = len(matches)
+    fp = len(false_positives)
+    fn = len(false_negatives)
+
+    precision = (
+        tp / (tp + fp)
+        if tp + fp > 0
+        else 0.0
+    )
+
+    recall = (
+        tp / (tp + fn)
+        if tp + fn > 0
+        else 0.0
+    )
+
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if precision + recall > 0
+        else 0.0
+    )
+
+    return {
+        "matches": matches,
+
+        "false_positives": sorted(false_positives),
+        "false_negatives": sorted(false_negatives),
+
+        "good_false_positives": good_fp,
+        "bad_false_positives": bad_fp,
+
+        "num_true_positives": tp,
+        "num_false_positives": fp,
+        "num_false_negatives": fn,
+
+        "num_good_false_positives": len(good_fp),
+        "num_bad_false_positives": len(bad_fp),
+
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+
+        "mean_error": (
+            float(np.mean(errors))
+            if len(errors) > 0
+            else np.nan
+        ),
+
+        "rmse_error": (
+            float(np.sqrt(np.mean(errors ** 2)))
+            if len(errors) > 0
+            else np.nan
+        ),
+
+        "lattice_vector_a": a,
+        "lattice_vector_b": b,
+
+        "generated_lattice_xy": lattice_xy,
+
+        "sigma_error": (
+            float(np.mean(sigma_errors))
+            if len(sigma_errors) > 0
+            else np.nan
+        ),
+
+        "rmse_sigma_error": (
+            float(np.sqrt(np.mean(sigma_errors ** 2)))
+            if len(sigma_errors) > 0
+            else np.nan
+        ),
+
+        "amplitude_error": (
+            float(np.mean(amplitude_errors))
+            if len(amplitude_errors) > 0
+            else np.nan
+        ),
+
+        "rmse_amplitude_error": (
+            float(np.sqrt(np.mean(amplitude_errors ** 2)))
+            if len(amplitude_errors) > 0
+            else np.nan
+        ),
+    }
+
