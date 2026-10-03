@@ -848,3 +848,45 @@ def compare_sublattices_with_lattice_fp_classification(
         ),
     }
 
+def get_classified_atom_coords(results, noisy_sublattice):
+    noisy_xy = sublattice_to_xy(noisy_sublattice)
+
+    tp_indices = [m['noisy_index'] for m in results['matches']]
+    gfp_indices = [gfp_dict['false_positive_index'] for gfp_dict in results['good_false_positives']]
+    bfp_indices = [bfp_dict['false_positive_index'] for bfp_dict in results['bad_false_positives']]
+
+    # Modify to return empty 2D array with 0 rows and 2 columns when indices are empty
+    tp_coords = noisy_xy[tp_indices] if tp_indices else np.empty((0, 2))
+    gfp_coords = noisy_xy[gfp_indices] if gfp_indices else np.empty((0, 2))
+    bfp_coords = noisy_xy[bfp_indices] if bfp_indices else np.empty((0, 2))
+
+    return tp_coords, gfp_coords, bfp_coords
+
+def plot_atom_classification(image, sublattice_clean, sublattice_noisy, results):
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.imshow(image.data, cmap='gray')
+    ax.axis('off')
+
+    # Plot reference atoms (clean) as 'x' markers
+    #clean_xy = sublattice_to_xy(sublattice_clean)
+    #ax.scatter(clean_xy[:, 0], clean_xy[:, 1], color='green', marker='x', s=100, label='Reference (Clean) Atoms')
+
+    # Get classified noisy atom coordinates
+    tp_coords, gfp_coords, bfp_coords = get_classified_atom_coords(results, sublattice_noisy)
+
+    # Plot True Positives as green 'o' markers
+    if tp_coords.shape[0] > 0:
+        ax.scatter(tp_coords[:, 0], tp_coords[:, 1], color='green', marker='o', s=50, alpha=0.7, label='True Positives')
+
+    # Plot Good False Positives as orange 'o' markers
+    if gfp_coords.shape[0] > 0:
+        ax.scatter(gfp_coords[:, 0], gfp_coords[:, 1], color='orange', marker='o', s=50, alpha=0.7, label='Good False Positives')
+
+    # Plot Bad False Positives as red 'o' markers
+    if bfp_coords.shape[0] > 0:
+        ax.scatter(bfp_coords[:, 0], bfp_coords[:, 1], color='red', marker='o', s=50, alpha=0.7, label='Bad False Positives')
+
+    #ax.set_title('Atom Classification on Clean Image')
+    #ax.legend(loc='upper right', bbox_to_anchor=(1.25, 1))
+    plt.tight_layout()
+    plt.show()
