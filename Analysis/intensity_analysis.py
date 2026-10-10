@@ -18,6 +18,7 @@ from scipy.optimize import linear_sum_assignment
 from Analysis.gaussian_detection import detect_and_plot_gaussian_blobs, fit_2d_gaussians, gaussian_2d
 
 import hyperspy.api as hs
+from Analysis.gaussian_detection_atomap import find_atoms
 
 def cluster_gaussians_by_amplitude_and_plot(
     calibrated_img_array: np.ndarray,
