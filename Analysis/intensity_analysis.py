@@ -407,7 +407,7 @@ def classify_intensities(img, model, X, y, separation, verbose=False):
   s = hs.signals.Signal2D(img)
   gaussians_sublattice = find_atoms(s, separation = separation, plot = True)
   fitted_gaussians = []
-  for atom in gaussians.atom_list:
+  for atom in gaussians_sublattice.atom_list:
     fitted_gaussians_list.append({
         'amplitude': atom.amplitude_gaussian,
         'x0': atom.pixel_x,
