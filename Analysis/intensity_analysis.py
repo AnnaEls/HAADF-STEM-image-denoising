@@ -400,9 +400,19 @@ def to_numpy_labels(y):
           return y.squeeze().to_numpy()
       return np.asarray(y)
 
-def classify_intensities(img, model, X, y, verbose=False):
-  gaussians = detect_and_plot_gaussian_blobs(img,threshold=0.2,show=verbose)
-  fitted_gaussians = fit_2d_gaussians(img, gaussians, gaussian_2d,verbose=verbose)
+def classify_intensities(img, model, X, y, separation, verbose=False):
+  s = hs.signals.Signal2D(img)
+  gaussians_sublattice = find_atoms(s, separation = separation, plot = True)
+  fitted_gaussians = []
+  for atom in gaussians.atom_list:
+    fitted_gaussians_list.append({
+        'amplitude': atom.amplitude_gaussian,
+        'x0': atom.pixel_x,
+        'y0': atom.pixel_y,
+        'sigma_x': atom.sigma_x,
+        'sigma_y': atom.sigma_y,
+        'offset': 0.0
+    }) 
   # Check if fitted_gaussians is empty or None before proceeding
   if not fitted_gaussians:
     return None
