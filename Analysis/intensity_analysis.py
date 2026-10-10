@@ -17,9 +17,6 @@ from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 from Analysis.gaussian_detection import detect_and_plot_gaussian_blobs, fit_2d_gaussians, gaussian_2d
 
-import hyperspy.api as hs
-from Analysis.gaussian_detection_atomap import find_atoms
-
 def cluster_gaussians_by_amplitude_and_plot(
     calibrated_img_array: np.ndarray,
     fitted_gaussians: list,
@@ -403,19 +400,10 @@ def to_numpy_labels(y):
           return y.squeeze().to_numpy()
       return np.asarray(y)
 
-def classify_intensities(img, model, X, y, separation, verbose=False):
-  s = hs.signals.Signal2D(img)
-  gaussians_sublattice = find_atoms(s, separation = separation, plot = True)
-  fitted_gaussians = []
-  for atom in gaussians_sublattice.atom_list:
-    fitted_gaussians.append({
-        'amplitude': atom.amplitude_gaussian,
-        'x0': atom.pixel_x,
-        'y0': atom.pixel_y,
-        'sigma_x': atom.sigma_x,
-        'sigma_y': atom.sigma_y,
-        'offset': 0.0
-    }) 
+def classify_intensities(img, model, X, y, verbose=False):
+  gaussian_blobs = detect_and_plot_gaussian_blobs(img, min_sigma=1, max_sigma=30, num_sigma=10, threshold=0.2)
+  fitted_gaussians = fit_2d_gaussians(img, gaussian_blobs, gaussian_2d)
+  
   # Check if fitted_gaussians is empty or None before proceeding
   if not fitted_gaussians:
     return None
