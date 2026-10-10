@@ -408,7 +408,7 @@ def classify_intensities(img, model, X, y, separation, verbose=False):
   gaussians_sublattice = find_atoms(s, separation = separation, plot = True)
   fitted_gaussians = []
   for atom in gaussians_sublattice.atom_list:
-    fitted_gaussians_list.append({
+    fitted_gaussians.append({
         'amplitude': atom.amplitude_gaussian,
         'x0': atom.pixel_x,
         'y0': atom.pixel_y,
