@@ -341,6 +341,7 @@ def plot_vacancies(
     clean_sublattice,
     vacancy_xy,
     false_pos_xy,
+    false_pos_vac_xy,
     s_v = 250,
     s_a = 35,
     show_atoms=True
@@ -386,7 +387,17 @@ def plot_vacancies(
             edgecolors="red",
             linewidths=2.5,
             label="False positive"
-        )  
+        )
+    if len(false_pos_vac_xy) > 0:
+        ax.scatter(
+            false_pos_vac_xy[:, 0],
+            false_pos_vac_xy[:, 1],
+            s=s_v,
+            facecolors="none",
+            edgecolors="orange",
+            linewidths=2.5,
+            label="False positive vacancy"
+        )   
 
     ax.axis("off")
     
