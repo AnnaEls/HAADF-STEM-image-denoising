@@ -410,7 +410,8 @@ def classify_intensities(img, model, X, y, verbose=False):
   X_ns = build_gaussian_prediction_data(fitted_gaussians)
   if len(X_ns) == 0:
     return None
-  y_ns = model.predict(X_ns[['amplitude']])
+  X_ns_train = (X_ns['amplitude'] + X_ns['offset']).to_frame(name='amplitude_plus_offset')    
+  y_ns = model.predict(X_ns_train)
 
 
   pos_cols = ['x0', 'y0']     # Gaussian center columns
