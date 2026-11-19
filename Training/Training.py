@@ -162,7 +162,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
                #plt.imshow(denoised_image_fused.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
 
                plt.show()
-               J, metrics = analyze_jacobian(MODEL, input_image, row=64, col=64, local_radius=8)
+               J, metrics = analyze_jacobian(model, input, row=64, col=64, local_radius=8)
                print(metrics)
                fig, ax = plt.subplots(figsize=(6, 5))
                vmax = np.max(np.abs(J))
