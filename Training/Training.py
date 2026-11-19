@@ -158,7 +158,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
 
-def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, row = 55, col = 79, seed=42):    
+def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, row = 55, col = 79, seed=42, jacobians = True, row = 64, col = 64):    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
@@ -188,7 +188,10 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
         loss.backward()
         optimizer.step()
 
-        model.eval()
+        if jacobians == True:
+            J_AFNO, J_CNN, _ ,_ = compute_hybrid_jacobians_explicit(modle, input, row=row, col=col)
+        else:
+            model.eval()
         
         with torch.no_grad():
             denoised_image_afno, denoised_image_cnn = model(input)
@@ -203,8 +206,21 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
                plt.imshow(denoised_image_cnn.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
                #plt.subplot(2,2,3)
                #plt.imshow(denoised_image_fused.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
-
-               plt.show()              
+               plt.show()
+               if jacobians:
+                   fig, axes = plt.subplots(1, 2, figsize=(12, 5))                
+                   vmax_afno = np.max(np.abs(J_AFNO))
+                   vmax_cnn = np.max(np.abs(J_CNN)) if np.max(np.abs(J_CNN)) > 0 else 1e-6                
+                   im1 = axes[0].imshow(J_AFNO, cmap='seismic', vmin=-vmax_afno, vmax=vmax_afno)
+                   axes[0].set_title("J_AFNO (Fourier Branch)")
+                   axes[0].axis('off')
+                   fig.colorbar(im1, ax=axes[0], label='Correlation')                
+                   im2 = axes[1].imshow(J_CNN, cmap='seismic', vmin=-vmax_cnn, vmax=vmax_cnn)
+                   axes[1].set_title("J_CNN (CNN Branch)")
+                   axes[1].axis('off')
+                   fig.colorbar(im2, ax=axes[1], label='Correlation')                
+                   plt.tight_layout()
+                   plt.show() 
               
         model.train()
     
