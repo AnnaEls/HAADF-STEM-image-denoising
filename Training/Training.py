@@ -228,6 +228,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
         optimizer.step()
 
         model.eval()
+        J_F, J_C, img_F, img_C = compute_hybrid_jacobians(model, input, row=row, col=col, device=device)
         with torch.no_grad():
             denoised_image_afno, denoised_image_cnn = model(input)
             tifffile.imwrite(f'{path}/AFNO_{(it+1):04d}.tif', convert(denoised_image_afno.squeeze().detach().cpu().numpy()), imagej=True)
@@ -243,7 +244,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
                #plt.imshow(denoised_image_fused.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
 
                plt.show()
-               J_F, J_C, img_F, img_C = compute_hybrid_jacobians(model, input, row=row, col=col, device=device)
+              
                fig, axes = plt.subplots(2, 2, figsize=(10, 9))
 
                # Reconstructions
