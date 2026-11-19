@@ -13,6 +13,68 @@ import torch
 import torch.nn.functional as F
 import copy
 
+
+def analyze_jacobian(
+    model,
+    noisy,
+    row,
+    col,
+    local_radius=8,
+    mask_target=False
+):
+    """
+    noisy: [1, 1, H, W] tensor
+    row, col: output pixel to analyze
+
+    mask_target:
+       False -> evaluate on complete noisy image
+       True  -> zero the target pixel before evaluation
+    """
+    model.eval()
+
+    x = noisy.detach().clone().requires_grad_(True)
+
+    if mask_target:
+        mask = torch.ones_like(x)
+        mask[0, 0, row, col] = 0
+        model_input = x * mask
+    else:
+        model_input = x
+
+    with torch.enable_grad():
+        output  = model(model_input)
+        target = output[0][0, 0, row, col]
+
+        grad = torch.autograd.grad(
+            target, x, retain_graph=False
+        )[0]
+
+    J = grad[0, 0].detach().cpu().numpy()
+
+    H, W = J.shape
+    yy, xx = np.ogrid[:H, :W]
+
+    distance = np.sqrt(
+        (yy - row)**2 + (xx - col)**2
+    )
+
+    abs_J = np.abs(J)
+    total = abs_J.sum() + 1e-12
+
+    self_dependence = abs_J[row, col]
+
+    local = abs_J[distance <= local_radius].sum()
+    nonlocal_weight = abs_J[distance > local_radius].sum()
+
+    metrics = {
+        "self": float(self_dependence),
+        "local_fraction": float(local / total),
+        "nonlocal_fraction": float(nonlocal_weight / total),
+        "total_sensitivity": float(total)
+    }
+
+    return J, metrics
+
 def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -100,6 +162,15 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
                #plt.imshow(denoised_image_fused.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
 
                plt.show()
+               J, metrics = analyze_jacobian(MODEL, input_image, row=64, col=64, local_radius=8)
+               print(metrics)
+               fig, ax = plt.subplots(figsize=(6, 5))
+               vmax = np.max(np.abs(J))
+               im = ax.imshow(J,cmap="seismic", vmin=-vmax, vmax=vmax)
+               ax.plot(128, 128, "k+")
+               ax.set_title("Input-output Jacobian")
+               plt.colorbar(im, ax=ax)
+               plt.show() 
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
  
