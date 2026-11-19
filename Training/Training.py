@@ -116,7 +116,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
 
-def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
+def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, row = 55, col = 79, seed=42):    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
@@ -162,7 +162,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
                #plt.imshow(denoised_image_fused.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
 
                plt.show()
-               J, metrics = analyze_jacobian(model, input, row=64, col=64, local_radius=8)
+               J, metrics = analyze_jacobian(model, input, row, col, local_radius=8)
                print(metrics)
                fig, ax = plt.subplots(figsize=(6, 5))
                vmax = np.max(np.abs(J))
