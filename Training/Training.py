@@ -189,7 +189,7 @@ def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch
         optimizer.step()
 
         if jacobians == True:
-            J_AFNO, J_CNN, _ ,_ = compute_hybrid_jacobians_explicit(modle, input, row=row, col=col)
+            J_AFNO, J_CNN, _ ,_ = compute_hybrid_jacobians(modle, input, row=row, col=col)
         else:
             model.eval()
         
