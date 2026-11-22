@@ -33,7 +33,7 @@ def compute_jacobian(
             retain_graph=True
         )[0]   
 
-    return J
+    return J.detach().cpu().numpy()
 
 
 
@@ -182,13 +182,11 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
                print(f"epoch {it + 1}, loss={loss.item():.6f}")
                plt.imshow(denoised_image.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
                plt.show()
-               if jacobians:
-                   fig, axes = plt.subplots(1, 1, figsize=(6, 5))                
-                   vmax = np.max(np.abs(J.detach().cpu().numpy()))                       
-                   im1 = axes[0].imshow(J, cmap='seismic', vmin=-vmax, vmax=vmax)
-                   axes[0].set_title("Jacobian")
-                   axes[0].axis('off')
-                   fig.colorbar(im1, ax=axes[0], label='Correlation')    
+               if jacobians:                                
+                   vmax = np.max(np.abs(J))                       
+                   im1 = plt.imshow(J, cmap='seismic', vmin=-vmax, vmax=vmax)
+                   plt.set_title("Jacobian")
+                   plt.axis('off')                   
                    plt.tight_layout()
                    plt.show()  
         model.train()
