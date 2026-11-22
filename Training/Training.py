@@ -13,6 +13,30 @@ import torch
 import torch.nn.functional as F
 import copy
 
+def compute_jacobian(
+    model,
+    noisy_image,
+    row,
+    col
+):
+    model.eval()
+
+    x = noisy_image.detach().clone().requires_grad_(True)
+
+    with torch.enable_grad():
+
+        output = model(x)
+
+        J = torch.autograd.grad(
+            outputs=output[0, 0, row, col],
+            inputs=x,
+            retain_graph=True
+        )[0]   
+
+    return J
+
+
+
 def compute_hybrid_jacobians(
     model,
     noisy_image,
@@ -117,7 +141,7 @@ def compute_hybrid_jacobians(
         output_cnn[0, 0].detach().cpu().numpy()
     )
 
-def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42):    
+def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42, jacobians = True, row = 64, col = 64):    
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
@@ -147,7 +171,10 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
         loss.backward()
         optimizer.step()
 
-        model.eval()
+       if jacobians == True:
+            J = compute_jacobian(model, input, row=row, col=col)
+        else:
+            model.eval()
         with torch.no_grad():
             denoised_image= model(input)
             tifffile.imwrite(f'{path}/{it+1:04d}.tif', convert(denoised_image.squeeze().detach().cpu().numpy()), imagej=True)
@@ -155,6 +182,15 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
                print(f"epoch {it + 1}, loss={loss.item():.6f}")
                plt.imshow(denoised_image.squeeze().detach().cpu().numpy(), cmap='gray'); plt.axis('off'); plt.tight_layout();
                plt.show()
+               if jacobians:
+                   fig, axes = plt.subplots(1, 1, figsize=(6, 5))                
+                   vmax = np.max(np.abs(J))                       
+                   im1 = axes[0].imshow(J, cmap='seismic', vmin=-vmax, vmax=vmax)
+                   axes[0].set_title("Jacobian")
+                   axes[0].axis('off')
+                   fig.colorbar(im1, ax=axes[0], label='Correlation')    
+                   plt.tight_layout()
+                   plt.show()  
         model.train()
     np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
 
