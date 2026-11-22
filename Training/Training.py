@@ -33,7 +33,7 @@ def compute_jacobian(
             retain_graph=True
         )[0]   
 
-    return J.detach().cpu().numpy()
+    return J[0,0].detach().cpu().numpy()
 
 
 
