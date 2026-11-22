@@ -171,7 +171,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
         loss.backward()
         optimizer.step()
 
-       if jacobians == True:
+        if jacobians == True:
             J = compute_jacobian(model, input, row=row, col=col)
         else:
             model.eval()
