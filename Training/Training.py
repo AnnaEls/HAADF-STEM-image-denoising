@@ -184,7 +184,7 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
                plt.show()
                if jacobians:
                    fig, axes = plt.subplots(1, 1, figsize=(6, 5))                
-                   vmax = np.max(np.abs(J))                       
+                   vmax = np.max(np.abs(J.detach().cpu().numpy()))                       
                    im1 = axes[0].imshow(J, cmap='seismic', vmin=-vmax, vmax=vmax)
                    axes[0].set_title("Jacobian")
                    axes[0].axis('off')
