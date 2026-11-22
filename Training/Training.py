@@ -189,7 +189,8 @@ def train_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1
                    plt.tight_layout()
                    plt.show()  
         model.train()
-    np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))    
+    np.save(os.path.join(path, 'loss_history.npy'), np.array(loss_history))  
+    np.save(os.path.join(path, f'jacobian_{it+1:04d}.npy'), np.array(J))  
 
 def train_hybrid_model(model, input, path, learning_rate=1e-3, num_iter=1, patch_size=1, mask_ratio=0.2, show_image=False, seed=42, jacobians = True, row = 64, col = 64):    
     
